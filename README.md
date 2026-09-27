@@ -22,7 +22,9 @@ directories.
 
 ## Install
 
-Requires Python 3.12 or newer.
+Requires Python 3.12 or newer. On Python 3.14, `lxml` (pinned below 6 by the
+extractor stack) has no prebuilt wheels and is compiled during install: on
+Linux, install `libxml2-dev` and `libxslt1-dev` first. macOS works out of the box.
 
 ```bash
 git clone https://github.com/koolkhel/llmwiki.git && cd llmwiki
