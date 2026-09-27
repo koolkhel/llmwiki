@@ -5,10 +5,12 @@ argument-hint: <question>
 
 Answer this question using the wiki, following `CLAUDE.md`: $ARGUMENTS
 
-1. **Find.** Read `index.md`, then run `wiki search <key terms> --json`, trying
-   a few phrasings. Read the relevant pages and follow their links. If the wiki
-   is thin on the topic, also run `wiki search <terms> --raw --json` and read
-   the matching raw sources.
+1. **Find.** Read `index.md`, then run `wiki search <key terms> --json`. Search
+   matches word forms, so try synonyms and related terms rather than
+   inflections. Use `--exact` for names and identifiers, and treat
+   `match: "substring"` hits as weak. Read the relevant pages and follow their
+   links. If the wiki is thin on the topic, also run
+   `wiki search <terms> --raw --json` and read the matching raw sources.
 2. **Answer** from what the wiki says. Cite pages inline as `[[Page]]`. Say
    plainly what the wiki does not cover, and where sources disagree. Don't
    present outside knowledge as coming from the wiki; label it if you add any.

@@ -191,16 +191,21 @@ def search_cmd(
     type_: Annotated[Optional[PageType], typer.Option("--type", help="Only pages of this type.")] = None,
     limit: Annotated[int, typer.Option("--limit", help="Maximum results.")] = 20,
     raw: Annotated[bool, typer.Option("--raw", help="Search raw sources instead of wiki pages.")] = False,
+    exact: Annotated[
+        bool, typer.Option("--exact", help="Whole words only: no word-form (lemma/stem) or substring matching.")
+    ] = False,
     json_: JsonOpt = False,
     vault: VaultOpt = None,
 ) -> None:
-    """Find pages by title, summary, tags and body (case- and accent-insensitive)."""
+    """Find pages by title, summary, tags and body. Matches word forms (кошка ~ кошек, run ~ running)."""
 
     def body() -> Outcome:
-        res = search.search(find_vault(vault), " ".join(query), type_.value if type_ else None, limit, raw)
-        lines = [f"{r['link']}  ({r['type']}, {r['path']})\n    {r['snippet']}" for r in res["results"]]
+        res, warnings = search.search(
+            find_vault(vault), " ".join(query), type_.value if type_ else None, limit, raw, exact
+        )
+        lines = [f"{r['link']}  ({r['type']}, {r['match']}, {r['path']})\n    {r['snippet']}" for r in res["results"]]
         shown = f"{len(res['results'])} of {res['total']}" if res["total"] > len(res["results"]) else str(res["total"])
-        return Outcome(res, "\n".join([*lines, f"{shown} result(s)"]))
+        return Outcome(res, "\n".join([*lines, f"{shown} result(s)"]), warnings=warnings)
 
     run(json_, body)
 

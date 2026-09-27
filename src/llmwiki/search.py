@@ -1,4 +1,9 @@
-"""Plain term search over wiki pages (or raw sources)."""
+"""Term search over wiki pages (or raw sources), aware of word forms.
+
+Each query term matches a field in one of three tiers: exact word (after
+folding) > same lemma/stem > substring. Fields rank title > summary/tags >
+body; see design D4 of the search-morphology change for the scoring.
+"""
 
 from __future__ import annotations
 
@@ -6,31 +11,38 @@ import unicodedata
 from dataclasses import dataclass
 
 from .errors import WikiError
+from .morph import Analyzer, Token, fold, fold_with_map, tokenize
 from .naming import key
 from .pages import iter_pages
+from .searchcache import LemmaCache
 from .sources import iter_raw
 from .vault import Vault
 
 SNIPPET_RADIUS = 80
-TITLE_WEIGHT, META_WEIGHT, BODY_WEIGHT, BODY_CAP = 100, 10, 1, 5
+FIELD_WEIGHTS = {"title": 100, "meta": 10, "body": 1}
+TIER_WEIGHTS = {"exact": 3, "lemma": 2, "substring": 1}
+TIERS = ("exact", "lemma", "substring")  # strongest first
 
 
-def fold_with_map(s: str) -> tuple[str, list[int]]:
-    """Case- and accent-folded text, plus a map from each folded char to its source index."""
-    out: list[str] = []
-    idx: list[int] = []
-    for i, ch in enumerate(s):
-        for d in unicodedata.normalize("NFKD", ch):
-            if unicodedata.combining(d):
-                continue
-            for f in d.casefold():
-                out.append(f)
-                idx.append(i)
-    return "".join(out), idx
+@dataclass
+class _Field:
+    text: str  # NFC
+    folded: str
+    fmap: list[int]
+    tokens: list[Token]
+    tfolded: list[str]
+    tkeys: list[frozenset[str]]
+    exact: set[str]
+    keys: set[str]
 
 
-def fold(s: str) -> str:
-    return fold_with_map(s)[0]
+def _field(text: str, an: Analyzer) -> _Field:
+    text = unicodedata.normalize("NFC", text)
+    folded, fmap = fold_with_map(text)
+    tokens = tokenize(text)
+    tfolded = [fold(t.text) for t in tokens]
+    tkeys = [an.keys(t.text) for t in tokens]
+    return _Field(text, folded, fmap, tokens, tfolded, tkeys, set(tfolded), set().union(*tkeys))
 
 
 @dataclass
@@ -39,64 +51,120 @@ class _Doc:
     title: str
     type: str
     summary: str
-    tags: list[str]
-    body: str
+    link: str
+    fields: dict[str, _Field]
 
 
-def _snippet(body: str, terms: list[str]) -> str:
-    folded, idx = fold_with_map(body)
-    hits = [p for p in (folded.find(t) for t in terms) if p >= 0]
-    if not hits:
+@dataclass(frozen=True)
+class _Term:
+    folded: str
+    keys: frozenset[str]
+
+
+def _tier(f: _Field, t: _Term, exact_only: bool) -> str | None:
+    if t.folded in f.exact:
+        return "exact"
+    if exact_only:
+        return None
+    if t.keys & f.keys:
+        return "lemma"
+    if t.folded in f.folded:
+        return "substring"
+    return None
+
+
+def _token_hits(f: _Field, t: _Term, exact_only: bool) -> list[int]:
+    """Indexes of tokens in `f` that match `t` as a word (exact or lemma)."""
+    return [
+        i
+        for i, (tf, tk) in enumerate(zip(f.tfolded, f.tkeys))
+        if tf == t.folded or (not exact_only and t.keys & tk)
+    ]
+
+
+def _snippet(f: _Field, terms: list[_Term], exact_only: bool) -> str:
+    starts = [f.tokens[h[0]].start for t in terms if (h := _token_hits(f, t, exact_only))]
+    if not starts and not exact_only:
+        starts = [f.fmap[p] for t in terms if (p := f.folded.find(t.folded)) >= 0]
+    body = f.text
+    if not starts:
         return " ".join(body.split())[: 2 * SNIPPET_RADIUS]
-    start = idx[min(hits)]
+    start = min(starts)
     lo, hi = max(0, start - SNIPPET_RADIUS), min(len(body), start + SNIPPET_RADIUS)
     text = " ".join(body[lo:hi].split())
     return ("…" if lo > 0 else "") + text + ("…" if hi < len(body) else "")
 
 
-def _score(doc: _Doc, terms: list[str]) -> int | None:
-    title, meta, body = fold(doc.title), fold(" ".join([doc.summary, *doc.tags])), fold(doc.body)
-    score = 0
+def _evaluate(doc: _Doc, terms: list[_Term], exact_only: bool) -> tuple[int, int, str] | None:
+    """(score, body hit count, match tier) or None if some term does not match."""
+    score, needed = 0, []
     for t in terms:
-        if t in title:
-            score += TITLE_WEIGHT
-        elif t in meta:
-            score += META_WEIGHT
-        elif t in body:
-            score += BODY_WEIGHT * min(body.count(t), BODY_CAP)
-        else:
-            return None  # every term must match somewhere
-    return score
+        best_value, best_tier = 0, None
+        for name, f in doc.fields.items():
+            tier = _tier(f, t, exact_only)
+            if tier is None:
+                continue
+            value = FIELD_WEIGHTS[name] * TIER_WEIGHTS[tier]
+            best_value = max(best_value, value)
+            if best_tier is None or TIERS.index(tier) < TIERS.index(best_tier):
+                best_tier = tier
+        if best_tier is None:
+            return None
+        score += best_value
+        needed.append(best_tier)
+    body = doc.fields["body"]
+    hits = sum(len(_token_hits(body, t, exact_only)) or body.folded.count(t.folded) for t in terms)
+    return score, hits, max(needed, key=TIERS.index)
 
 
-def search(vault: Vault, query: str, page_type: str | None = None, limit: int = 20, raw: bool = False) -> dict:
-    terms = fold(query).split()
-    if not terms:
-        raise WikiError("empty_query", "Search query must contain at least one term.")
+def search(
+    vault: Vault,
+    query: str,
+    page_type: str | None = None,
+    limit: int = 20,
+    raw: bool = False,
+    exact: bool = False,
+) -> tuple[dict, list[str]]:
+    """Returns (result document, warnings)."""
+    words = [t.text for t in tokenize(unicodedata.normalize("NFC", query), compounds=False)]
+    if not words:
+        raise WikiError("empty_query", "Search query must contain at least one word.")
     if limit < 1:
         raise WikiError("invalid_limit", "--limit must be at least 1.")
     if raw and page_type:
         raise WikiError("invalid_option", "--type cannot be combined with --raw.")
+
+    cache = LemmaCache(vault)
+    an = Analyzer(cache.load())
+    terms = list({fold(w): _Term(fold(w), an.keys(w)) for w in words}.values())
+
+    def doc(path: str, title: str, type_: str, summary: str, tags: list[str], body: str, link: str) -> _Doc:
+        fields = {"title": _field(title, an), "meta": _field(" ".join([summary, *tags]), an), "body": _field(body, an)}
+        return _Doc(path, title, type_, summary, link, fields)
+
     if raw:
-        raws = iter_raw(vault)
-        docs = [_Doc(r.rel, r.title, "raw", "", [], r.body) for r in raws]
-        links = {r.rel: f"[[{r.stem}]]" for r in raws}
+        docs = [doc(r.rel, r.title, "raw", "", [], r.body, f"[[{r.stem}]]") for r in iter_raw(vault)]
     else:
-        pages = [p for p in iter_pages(vault) if page_type is None or p.folder_type == page_type]
-        docs = [_Doc(p.rel, p.stem, p.folder_type or p.type or "unknown", p.summary, p.tags, p.body) for p in pages]
-        links = {p.rel: p.link for p in pages}
-    scored = [(s, d) for d in docs if (s := _score(d, terms)) is not None]
-    scored.sort(key=lambda sd: (-sd[0], key(sd[1].title), sd[1].path))
+        docs = [
+            doc(p.rel, p.stem, p.folder_type or p.type or "unknown", p.summary, p.tags, p.body, p.link)
+            for p in iter_pages(vault)
+            if page_type is None or p.folder_type == page_type
+        ]
+
+    scored = [(ev, d) for d in docs if (ev := _evaluate(d, terms, exact)) is not None]
+    scored.sort(key=lambda x: (-x[0][0], -x[0][1], key(x[1].title), x[1].path))
     results = [
         {
             "path": d.path,
             "title": d.title,
             "type": d.type,
             "summary": d.summary,
-            "link": links[d.path],
-            "score": s,
-            "snippet": _snippet(d.body, terms),
+            "link": d.link,
+            "match": match,
+            "score": score,
+            "snippet": _snippet(d.fields["body"], terms, exact),
         }
-        for s, d in scored[:limit]
+        for (score, _hits, match), d in scored[:limit]
     ]
-    return {"query": query, "total": len(scored), "results": results}
+    cache.save(an.new)
+    return {"query": query, "exact": exact, "total": len(scored), "results": results}, cache.warnings

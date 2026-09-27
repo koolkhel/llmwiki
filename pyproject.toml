@@ -19,6 +19,9 @@ dependencies = [
     "trafilatura==1.8.0",
     # lxml>=5.2 moved lxml.html.clean out; justext (via trafilatura) still imports it.
     "lxml_html_clean",
+    # Search: Russian lemmatization (dictionary ~15 MB) and English stemming.
+    "pymorphy3>=2.0",
+    "snowballstemmer>=2.2",
 ]
 
 [project.optional-dependencies]

@@ -65,7 +65,10 @@ is no `title:` field.
   **update that page instead**. If it really is a different thing, disambiguate
   the title in parentheses: `Mercury (planet)`, `Mercury (element)`.
 - Prefer updating an existing page over creating a near-duplicate. Search first
-  (`wiki search <terms> --json`).
+  (`wiki search <terms> --json`). Search understands word forms (`кошка` finds
+  `кошек`, `run` finds `running`), so one form of each word is enough. Each
+  result's `match` is `exact`, `lemma` or `substring`, from strongest to
+  weakest. Use `--exact` for names and identifiers.
 - Every page should be linked from at least one other page (`wiki lint`
   reports orphans).
 
