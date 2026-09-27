@@ -36,6 +36,7 @@ def check(vault: Vault) -> list[Finding]:
     raw_authors_by_rel = {
         r.rel: a for r in raws if isinstance(a := (r.meta or {}).get("authors"), list) and a
     }
+    raw_published_by_rel = {r.rel: v for r in raws if (v := (r.meta or {}).get("published"))}
     by_key: dict[str, list] = defaultdict(list)
     inbound: dict[str, set[str]] = defaultdict(set)
 
@@ -74,6 +75,12 @@ def check(vault: Vault) -> list[Finding]:
             if p.folder_type == "source" and isinstance(raw, str) and raw.strip():
                 if not (vault.root / raw.strip()).is_file():
                     out.append(Finding("error", "raw_missing", p.rel, f"`raw` points to a missing file: {raw}.", raw))
+                raw_published = raw_published_by_rel.get(raw.strip().removeprefix("./"))
+                if raw_published and not p.meta.get("published"):
+                    out.append(Finding(
+                        "warning", "missing_published", p.rel,
+                        f"Raw file records published {raw_published} but this page has no `published`.",
+                    ))
                 raw_authors = raw_authors_by_rel.get(raw.strip().removeprefix("./"))
                 page_authors = p.meta.get("authors")
                 if raw_authors and not (isinstance(page_authors, list) and page_authors):

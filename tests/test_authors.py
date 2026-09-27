@@ -219,7 +219,7 @@ def test_source_meta_all_lists_old_capture(run_cli, tmp_vault):
     items = {i["raw"]: i for i in r.json()["items"]}
     assert set(items) == {"raw/2026-01-01-Old.md", "raw/2026-01-03-Pending.md"}
     assert items["raw/2026-01-01-Old.md"] == {"raw": "raw/2026-01-01-Old.md", "source_page": "wiki/sources/2026-01-01-Old.md",
-                                             "authors": ["Владимир Синтетов"], "from": "derived"}
+                                             "missing": ["authors"], "authors": ["Владимир Синтетов"], "published": None}
     assert items["raw/2026-01-03-Pending.md"]["source_page"] is None
     assert _snapshot(tmp_vault.root) == before
 
@@ -230,7 +230,7 @@ def test_source_meta_recorded_authors_used_without_extraction(run_cli, tmp_vault
     monkeypatch.setattr(sources, "derive_meta", lambda *a: pytest.fail("should not re-extract"))
     items = run_cli("source-meta", "--all", "--json", "--vault", tmp_vault.root).json()["items"]
     assert items == [{"raw": "raw/2026-01-04-New.md", "source_page": "wiki/sources/2026-01-04-New.md",
-                      "authors": ["Anna A"], "from": "recorded"}]
+                      "missing": ["authors"], "authors": ["Anna A"], "published": None}]
 
 
 def test_source_meta_single(run_cli, tmp_vault):

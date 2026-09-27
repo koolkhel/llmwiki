@@ -11,7 +11,7 @@ import unicodedata
 from dataclasses import dataclass
 
 from .errors import WikiError
-from .fetch import clean_authors
+from .fetch import as_date, clean_authors, date_bound, format_date, instant, parse_date
 from .morph import Analyzer, Token, fold, fold_with_map, query_words, tokenize
 from .naming import key
 from .pages import iter_pages
@@ -157,14 +157,22 @@ def search(
     raw: bool = False,
     exact: bool = False,
     author: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    sort: str | None = None,
 ) -> tuple[dict, list[str]]:
     """Returns (result document, warnings)."""
+    lo = date_bound(since, end=False) if since is not None else None
+    hi = date_bound(until, end=True) if until is not None else None
+    if sort not in (None, "oldest", "newest"):
+        raise WikiError("invalid_option", "--sort must be `oldest` or `newest`.")
     words = query_words(unicodedata.normalize("NFC", query))
     author_words = [t.text for t in tokenize(unicodedata.normalize("NFC", author or ""), compounds=False)]
     if author is not None and not author_words:
         raise WikiError("empty_query", "--author must contain at least one word.")
-    if not words and not author_words:
-        raise WikiError("empty_query", "Search query must contain at least one word (or use --author).")
+    if not words and not author_words and lo is None and hi is None and sort is None:
+        raise WikiError("empty_query",
+                        "Search query must contain at least one word (or use --author, --since, --until or --sort).")
     if limit < 1:
         raise WikiError("invalid_limit", "--limit must be at least 1.")
     if raw and page_type:
@@ -195,7 +203,13 @@ def search(
         ]
 
     candidates: list[tuple[_Doc, str | None]] = []
+    published_of: dict[str, object] = {}
     for meta, make in entries:
+        published = (meta or {}).get("published")
+        if lo is not None or hi is not None:  # date filter first: cheap, before tokenizing the page
+            day = as_date(published)
+            if day is None or (lo and day < lo) or (hi and day > hi):
+                continue
         a_tier = None
         if author_words:
             names = _author_names(meta)
@@ -203,13 +217,22 @@ def search(
             a_tier = _author_tier(names, author_words, an, exact)
             if a_tier is None:
                 continue
-        candidates.append((make(), a_tier))
+        d = make()
+        published_of[d.path] = published
+        candidates.append((d, a_tier))
 
     if terms:
         scored = [(ev, d) for d, _ in candidates if (ev := _evaluate(d, terms, exact)) is not None]
         scored.sort(key=lambda x: (-x[0][0], -x[0][1], key(x[1].title), x[1].path))
-    else:  # --author only: everything by that author, by title
-        scored = sorted((((0, 0, a_tier), d) for d, a_tier in candidates), key=lambda x: (key(x[1].title), x[1].path))
+    else:  # no terms (--author / --since / --until / --sort only): all candidates, by title
+        scored = sorted((((0, 0, a_tier or "exact"), d) for d, a_tier in candidates),
+                        key=lambda x: (key(x[1].title), x[1].path))
+    if sort is not None:  # chronological order replaces relevance; undated last either way
+        def when(item):
+            t = instant(published_of.get(item[1].path))
+            return (t is None, (-t.timestamp() if sort == "newest" else t.timestamp()) if t else 0,
+                    key(item[1].title))
+        scored.sort(key=when)
     results = [
         {
             "path": d.path,
@@ -220,6 +243,7 @@ def search(
             "match": match,
             "score": score,
             "snippet": _snippet(d.fields["body"], terms, exact),
+            **({"published": _fmt(published_of.get(d.path))} if published_of.get(d.path) else {}),
         }
         for (score, _hits, match), d in scored[:limit]
     ]
@@ -227,4 +251,12 @@ def search(
     out = {"query": query, "exact": exact, "total": len(scored), "results": results}
     if author is not None:
         out["author"] = author
+    for k, v in (("since", since), ("until", until), ("sort", sort)):
+        if v is not None:
+            out[k] = v
     return out, cache.warnings
+
+
+def _fmt(value: object) -> str:
+    d = parse_date(value)
+    return format_date(d) if d is not None else str(value)

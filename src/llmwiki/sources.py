@@ -47,6 +47,10 @@ class RawSource:
         return str(t) if t else self.stem
 
     @property
+    def published(self) -> object:
+        return (self.meta or {}).get("published")
+
+    @property
     def sha256(self) -> str | None:
         s = (self.meta or {}).get("sha256")
         return str(s) if s else None
@@ -144,11 +148,13 @@ def capture_url(vault: Vault, url: str, now: dt.datetime | None = None) -> dict:
         "kind": "url",
         "title": page.title,
         "authors": page.authors or None,
+        "published": page.published,
+        "published_via": page.published_via,
+        "modified": page.modified,
         "original_url": page.original_url,
         "canonical_url": page.canonical_url,
         "normalized_url": page.normalized_url,
         "captured_at": _stamp(now),
-        "published": page.published,
         "language": page.language,
         "extractor": page.extractor,
         "sha256": sha,
@@ -202,6 +208,15 @@ def _frontmatter_authors(meta: dict | None) -> list[str]:
     return []
 
 
+def _frontmatter_published(meta: dict | None) -> str | None:
+    """`published` (or `date`) from a clipped markdown file's own frontmatter, normalised."""
+    for key in ("published", "date"):
+        d = fetch_mod.parse_date((meta or {}).get(key))
+        if d is not None:
+            return fetch_mod.format_date(d)
+    return None
+
+
 def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict:
     p = _source_file(vault, arg)
     data = p.read_bytes()
@@ -226,10 +241,13 @@ def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict
 
     now = _now(now)
     title = _file_title(original_meta, body, p.stem)
+    md_published = _frontmatter_published(original_meta)
     meta: dict = {
         "kind": "file",
         "title": title,
         "authors": _frontmatter_authors(original_meta) or None,
+        "published": md_published,
+        "published_via": "frontmatter" if md_published else None,
         "original_path": str(p),
         "captured_at": _stamp(now),
         "sha256": sha,
@@ -265,12 +283,14 @@ def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.d
             "kind": "url",
             "title": page.title,
             "authors": page.authors or None,
+            "published": page.published,
+            "published_via": page.published_via,
+            "modified": page.modified,
             "original_url": page.original_url,
             "canonical_url": page.canonical_url,
             "normalized_url": page.normalized_url,
             "captured_at": _stamp(now),
             "captured_via": "saved-file",
-            "published": page.published,
             "language": page.language,
             "extractor": page.extractor,
             "sha256": sha,
@@ -282,6 +302,9 @@ def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.d
             "kind": "file",
             "title": page.title,
             "authors": page.authors or None,
+            "published": page.published,
+            "published_via": page.published_via,
+            "modified": page.modified,
             "captured_at": _stamp(now),
             "captured_via": "saved-file",
             "language": page.language,
@@ -327,7 +350,7 @@ def capture(vault: Vault, arg: str, now: dt.datetime | None = None, url: str | N
 
 # --- re-derived metadata (read-only) ---------------------------------------------------
 
-_META_FIELDS = ("title", "authors", "published", "language", "canonical_url")
+_META_FIELDS = ("title", "authors", "published", "modified", "published_via", "language", "canonical_url")
 
 
 def derive_meta(vault: Vault, raw: RawSource) -> tuple[dict | None, str | None]:
@@ -346,6 +369,8 @@ def derive_meta(vault: Vault, raw: RawSource) -> tuple[dict | None, str | None]:
         "title": page.title,
         "authors": page.authors,
         "published": page.published,
+        "modified": page.modified,
+        "published_via": page.published_via,
         "language": page.language,
         "canonical_url": page.canonical_url,
     }, None
@@ -375,8 +400,16 @@ def source_meta(vault: Vault, raw_arg: str) -> dict:
     }
 
 
-def missing_authors_report(vault: Vault) -> dict:
-    """Raw files with known authors (recorded, else re-derived) whose source page lacks `authors`."""
+def _page_published(page: Page | None) -> object:
+    return (page.meta or {}).get("published") if page else None
+
+
+def missing_metadata_report(vault: Vault) -> dict:
+    """Raw files whose known authors or `published` are missing from their source page (or not ingested).
+
+    Known = recorded in the raw file, else re-derived from its stored original. For `published`,
+    a re-derived value is preferred when available: older captures recorded a weaker heuristic date.
+    """
     pages = iter_pages(vault)
     by_rel = {p.rel: p for p in pages}
     ingested = ingested_by(pages)
@@ -384,14 +417,24 @@ def missing_authors_report(vault: Vault) -> dict:
     raws = iter_raw(vault)
     for raw in raws:
         src = (ingested.get(raw.rel) or [None])[0]
-        if src and _page_authors(by_rel.get(src)):
+        page = by_rel.get(src) if src else None
+        need_authors = not _page_authors(page)
+        need_published = not _page_published(page)
+        if not (need_authors or need_published):
             continue
-        recorded = (raw.meta or {}).get("authors")
-        if isinstance(recorded, list) and recorded:
-            authors, origin = recorded, "recorded"
-        else:
+        m = raw.meta or {}
+        authors = m.get("authors") if isinstance(m.get("authors"), list) else []
+        published = m.get("published")
+        derived: dict | None = None
+        if ((need_authors and not authors) or need_published) and m.get("original_file"):
             derived, _ = derive_meta(vault, raw)
-            authors, origin = (derived or {}).get("authors") or [], "derived"
-        if authors:
-            items.append({"raw": raw.rel, "source_page": src, "authors": authors, "from": origin})
+        if need_authors and not authors:
+            authors = (derived or {}).get("authors") or []
+        if need_published and derived and derived.get("published"):
+            published = derived["published"]
+        missing = [f for f, need, val in (("authors", need_authors, authors), ("published", need_published, published))
+                   if need and val]
+        if missing:
+            items.append({"raw": raw.rel, "source_page": src, "missing": missing,
+                          "authors": authors, "published": published})
     return {"checked": len(raws), "items": items}

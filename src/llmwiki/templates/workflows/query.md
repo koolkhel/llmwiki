@@ -11,6 +11,10 @@ Answer this question using the wiki, following `AGENTS.md`: $ARGUMENTS
    `match: "substring"` hits as weak. Read the relevant pages and follow their
    links. If the wiki is thin on the topic, also run
    `wiki search <terms> --raw --json` and read the matching raw sources.
+   For questions about *when* something was said or how views changed, run
+   `wiki timeline "<Page>" --json` (or `--author "<Name>"`) and
+   `wiki search <terms> --since … --until … --sort oldest --json`, then answer
+   in chronological order with dates.
 2. **Answer** from what the wiki says. Cite pages inline as `[[Page]]`. Say
    plainly what the wiki does not cover, and where sources disagree. Don't
    present outside knowledge as coming from the wiki; label it if you add any.

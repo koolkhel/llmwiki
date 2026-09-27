@@ -51,6 +51,7 @@ updated: 2026-01-01      # bump whenever you change the page
 raw: raw/2026-01-01-Some Source.md   # source pages only
 authors:                 # source pages: who wrote it, when known (in order)
   - "[[Владимир Колдин]]"
+published: 2026-04-09    # source pages: publication date, when known
 ---
 ```
 
@@ -98,6 +99,26 @@ Who wrote a source matters as much as what it says.
 - `wiki search --author <name>` lists everything by a person (declined forms
   work: `--author Колдина`). `wiki lint` warns with `missing_authors` when a
   source page drops authors its raw file has.
+
+## Chronology
+
+When something was said matters: views change, and later sources revise
+earlier ones.
+
+- `wiki add-source` records the source's date in the raw file (`published`,
+  with time zone when known; `modified` if it was edited later;
+  `published_via` says where the date came from). Copy the date into the
+  source page as `published: YYYY-MM-DD`. `wiki lint` warns
+  (`missing_published`) when a source page drops it.
+- Date every claim on entity, concept and person pages: "In April 2026,
+  [[Author]] argued … ([[Source Page]])". Prefer the publication date over the
+  capture date.
+- Keep a **Timeline** section on concept and person pages: one dated line per
+  source, oldest first, e.g. `- 2026-04-09: [[Source Page]], [[Author]], one-line gist`.
+- For questions about change over time, run `wiki timeline "<Page>" --json`
+  (or `wiki timeline --author "<Name>"`). It lists every source about the page
+  in publication order. `wiki search ... --since 2026-01 --until 2026-06
+  --sort oldest` filters and sorts by date.
 
 ## Writing rules
 

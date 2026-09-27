@@ -33,6 +33,11 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
    or create it (`wiki new-page --type entity "<Name>" --json`, `tags: [person]`),
    and add this source to its **Articles** section. If the raw file has no
    `authors`, look for a byline in the text and ask the human rather than guess.
+   **Date:** copy the raw file's `published` date into the source page as
+   `published: YYYY-MM-DD`. If there is none, look for a date in the text and
+   ask the human. Add a dated line for this source to the **Timeline** section
+   of every concept and person page you touch (keep it oldest first), and date
+   the claims you add.
 5. **Update the wiki.** Typically 5–15 pages:
    - Update existing entity/concept pages with the new information. Add the
      source page to their `sources:`, bump `updated`, and cross-link.

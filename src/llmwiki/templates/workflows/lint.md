@@ -22,9 +22,12 @@ Health-check the wiki, following `AGENTS.md`. Focus: $ARGUMENTS
    - missing cross-links between clearly related pages,
    - bloated pages that should be split, or near-duplicates that should be merged.
    Fix what is clear-cut. List anything that needs the human's judgement.
-   **Authors backfill:** run `wiki source-meta --all --json`. For each item, add
-   its `authors` to the source page (as `"[[Name]]"` links, in order) and link or
-   create the person pages as the ingest workflow describes. Items without a
+   **Metadata backfill:** run `wiki source-meta --all --json`. Each item lists
+   what its source page is `missing`. For `authors`, add them to the source page
+   (as `"[[Name]]"` links, in order) and link or create the person pages as the
+   ingest workflow describes. For `published`, set the source page's
+   `published: YYYY-MM-DD` and add or fix its lines in the relevant Timeline
+   sections. Items without a
    source page are pending sources; mention them instead. Also look for
    duplicate person pages (name variants) and merge them, keeping `aliases`.
 3. Re-run `wiki lint --json` until there are no errors, then run `wiki index --json`.

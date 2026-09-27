@@ -219,3 +219,26 @@ def test_authors_must_be_list(clean_with_author):
                            raw="raw/2026-01-02-Authored.md", authors="Владимир Синтетов")
     # A string is both the wrong type and not a non-empty list of authors.
     assert codes(clean_with_author) == ["frontmatter_invalid", "missing_authors"]
+
+
+# --- track-publication-dates --------------------------------------------------------------
+
+
+def test_missing_published(clean_with_author):
+    raw = clean_with_author.root / "raw" / "2026-01-02-Authored.md"
+    raw.write_text(raw.read_text().replace("kind: file\n", "kind: file\npublished: '2026-04-09T06:25:00+03:00'\n"))
+    findings = lint.check(Vault(clean_with_author.root))
+    assert [(f.code, f.severity, f.path) for f in findings] == [
+        ("missing_published", "warning", "wiki/sources/Authored.md")]
+    assert "2026-04-09T06:25:00+03:00" in findings[0].message
+
+
+def test_published_present(clean_with_author):
+    import datetime as dt
+
+    raw = clean_with_author.root / "raw" / "2026-01-02-Authored.md"
+    raw.write_text(raw.read_text().replace("kind: file\n", "kind: file\npublished: '2026-04-09'\n"))
+    clean_with_author.page("source", "Authored", body="From raw. See [[Alpha]].", summary="authored source",
+                           raw="raw/2026-01-02-Authored.md", authors=["[[Владимир Синтетов]]"],
+                           published=dt.date(2026, 4, 9))
+    assert lint.check(Vault(clean_with_author.root)) == []

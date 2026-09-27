@@ -110,6 +110,11 @@ class Page:
         return clean_authors(a if isinstance(a, list) else [a]) if a else []
 
     @property
+    def published(self) -> object:
+        """Raw frontmatter `published` value (None when absent)."""
+        return (self.meta or {}).get("published")
+
+    @property
     def link(self) -> str:
         return f"[[{self.stem}]]"
 

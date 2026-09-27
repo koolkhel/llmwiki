@@ -8,6 +8,7 @@ trafilatura finds nothing. `http_get` is the single network seam.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import re
@@ -47,6 +48,8 @@ class FetchedPage:
     language: str | None
     extractor: str
     authors: list[str] = field(default_factory=list)
+    modified: str | None = None
+    published_via: str | None = None
 
 
 def http_get(url: str, timeout: float = TIMEOUT_SECONDS) -> HttpResponse:
@@ -192,18 +195,25 @@ def _same_page(a: str | None, b: str | None) -> bool:
         pb.netloc.lower().removeprefix("www."), pb.path.rstrip("/"))
 
 
-def _jsonld_authors(html: str, url: str | None) -> list[str]:
-    """Authors of the page's main article object in JSON-LD, in order."""
+def _main_article(html: str, url: str | None) -> dict | None:
+    """The page's main article object in JSON-LD (prefer one whose url/@id/mainEntityOfPage is this page)."""
     articles = [o for o in _jsonld_objects(html) if _types(o) & _ARTICLE_TYPES]
     if not articles:
-        return []
+        return None
 
     def ids(o: dict) -> list[str]:
         main = o.get("mainEntityOfPage")
         main_id = main.get("@id") if isinstance(main, dict) else main
         return [v for v in (o.get("url"), o.get("@id"), main_id) if isinstance(v, str)]
 
-    main = next((o for o in articles if any(_same_page(i, url) for i in ids(o))), articles[0])
+    return next((o for o in articles if any(_same_page(i, url) for i in ids(o))), articles[0])
+
+
+def _jsonld_authors(html: str, url: str | None) -> list[str]:
+    """Authors of the page's main article object in JSON-LD, in order."""
+    main = _main_article(html, url)
+    if main is None:
+        return []
     raw = main.get("author")
     names: list[str] = []
     for a in raw if isinstance(raw, list) else [raw]:
@@ -212,6 +222,107 @@ def _jsonld_authors(html: str, url: str | None) -> list[str]:
         elif isinstance(a, dict) and isinstance(a.get("name"), str):
             names.append(a["name"])
     return names
+
+
+# --- dates -----------------------------------------------------------------------------
+
+_MIN_YEAR, _MAX_YEAR = 1900, 2100
+
+
+def parse_date(value: object) -> dt.date | dt.datetime | None:
+    """ISO 8601 date or timestamp (offset kept); None for anything vague, junk or out of range."""
+    if isinstance(value, dt.datetime):
+        parsed: dt.date | dt.datetime = value
+    elif isinstance(value, dt.date):
+        parsed = value
+    elif isinstance(value, str):
+        v = value.strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}", v):  # rejects bare years/months and free text
+            return None
+        if v.endswith(("Z", "z")):
+            v = v[:-1] + "+00:00"
+        try:
+            parsed = dt.datetime.fromisoformat(v) if len(v) > 10 else dt.date.fromisoformat(v)
+        except ValueError:
+            return None
+    else:
+        return None
+    return parsed if _MIN_YEAR <= parsed.year <= _MAX_YEAR else None
+
+
+def format_date(value: dt.date | dt.datetime) -> str:
+    return value.isoformat(timespec="seconds") if isinstance(value, dt.datetime) else value.isoformat()
+
+
+def as_date(value: object) -> dt.date | None:
+    """Calendar date of a frontmatter `published` value (date, datetime or ISO string)."""
+    d = parse_date(value)
+    return d.date() if isinstance(d, dt.datetime) else d
+
+
+def instant(value: object) -> dt.datetime | None:
+    """Sortable UTC instant: offset-aware times converted, naive times and plain dates at 00:00 UTC."""
+    d = parse_date(value)
+    if d is None:
+        return None
+    if not isinstance(d, dt.datetime):
+        return dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc)
+    return d.astimezone(dt.timezone.utc) if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+
+
+def date_bound(text: str, end: bool) -> dt.date:
+    """`YYYY`, `YYYY-MM` or `YYYY-MM-DD` as the first (or, with end=True, last) day it covers."""
+    import calendar
+
+    m = re.fullmatch(r"(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?", text.strip())
+    try:
+        if not m:
+            raise ValueError
+        y, mo, d = int(m.group(1)), m.group(2), m.group(3)
+        if d:
+            return dt.date(y, int(mo), int(d))
+        if mo:
+            return dt.date(y, int(mo), calendar.monthrange(y, int(mo))[1] if end else 1)
+        return dt.date(y, 12, 31) if end else dt.date(y, 1, 1)
+    except ValueError:
+        raise WikiError("invalid_date", f"{text!r} is not a date: use YYYY, YYYY-MM or YYYY-MM-DD.") from None
+
+
+def _meta_content(soup, *names: str) -> str | None:
+    for n in names:
+        tag = soup.find("meta", attrs={"property": n}) or soup.find("meta", attrs={"name": n}) \
+            or soup.find(attrs={"itemprop": n})
+        if tag is not None:
+            v = tag.get("content") or tag.get("datetime")
+            if v:
+                return v
+    return None
+
+
+def _dates(html: str, url: str | None, meta: dict) -> tuple[str | None, str | None, str | None]:
+    """(published, modified, published_via) from JSON-LD > meta > <time> > heuristic."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    main = _main_article(html, url) or {}
+    modified = parse_date(main.get("dateModified")) or parse_date(
+        _meta_content(soup, "article:modified_time", "dateModified"))
+
+    published, via = parse_date(main.get("datePublished") or main.get("dateCreated")), "jsonld"
+    if published is None:
+        published, via = parse_date(_meta_content(soup, "article:published_time", "datePublished")), "meta"
+    if published is None:
+        scope = soup.find("article") or soup
+        time_tag = scope.find("time", attrs={"datetime": True}) or soup.find("time", attrs={"datetime": True})
+        published, via = (parse_date(time_tag["datetime"]) if time_tag else None), "time"
+    if published is None:
+        heuristic = meta.get("publication_date")
+        if isinstance(heuristic, dt.datetime):
+            heuristic = heuristic.date()  # htmldate finds dates only; never invent a midnight
+        published, via = parse_date(heuristic), "heuristic"
+    if published is None:
+        return None, (format_date(modified) if modified else None), None
+    return format_date(published), (format_date(modified) if modified else None), via
 
 
 def clean_authors(names: list[str]) -> list[str]:
@@ -271,7 +382,6 @@ def extract(original_url: str, final_url: str, html: str, html_bytes: bytes) -> 
             normalized = mcmetadata.urls.normalize_url(final_url)
         except Exception:
             normalized = None
-    published = meta.get("publication_date")
     parts = urlsplit(final_url)
     try:
         doc = trafilatura.extract_metadata(html, default_url=final_url)
@@ -279,6 +389,7 @@ def extract(original_url: str, final_url: str, html: str, html_bytes: bytes) -> 
     except Exception:
         trafilatura_author = None
     page_url = None if final_url.startswith("file:") else final_url
+    published, modified, published_via = _dates(html, page_url, meta)
     return FetchedPage(
         original_url=original_url,
         final_url=final_url,
@@ -287,7 +398,9 @@ def extract(original_url: str, final_url: str, html: str, html_bytes: bytes) -> 
         body=body.strip() + "\n",
         normalized_url=normalized or final_url,
         canonical_url=canonical,
-        published=published.isoformat() if hasattr(published, "isoformat") else (published or None),
+        published=published,
+        modified=modified,
+        published_via=published_via,
         language=meta.get("language") or None,
         extractor=extractor,
         authors=_authors(html, page_url, meta, trafilatura_author),

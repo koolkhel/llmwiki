@@ -225,3 +225,18 @@ def test_schema_and_workflows_cover_authors(run_cli, tmp_path):
     for wf in (".claude/commands/wiki-lint.md", ".agents/skills/wiki-lint/SKILL.md"):
         assert "wiki source-meta --all --json" in (v / wf).read_text()
     assert run_cli("lint", "--strict", "--vault", v).code == 0
+
+
+def test_schema_and_workflows_cover_chronology(run_cli, tmp_path):
+    v = tmp_path / "v"
+    run_cli("init", v, "--no-git")
+    agents = (v / "AGENTS.md").read_text()
+    for needle in ("## Chronology", "published: 2026-04-09", "Timeline", "wiki timeline", "In April 2026"):
+        assert needle in agents, needle
+    for agent_dir in (".claude/commands/wiki-", ".agents/skills/wiki-"):
+        def wf(name):
+            path = f"{agent_dir}{name}.md" if agent_dir.startswith(".claude") else f"{agent_dir}{name}/SKILL.md"
+            return (v / path).read_text()
+        assert "**Date:**" in wf("ingest") and "Timeline" in wf("ingest")
+        assert "wiki timeline" in wf("query")
+        assert "`published`" in wf("lint") and "missing" in wf("lint")
