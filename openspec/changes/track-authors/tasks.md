@@ -25,4 +25,4 @@
 
 ## 7. Verification
 
-- [ ] 7.1 Real-page check in a scratch vault: `wiki add-source https://rossaprimavera.ru/article/7c7b02cb` records `authors: [Владимир Колдин]` (not Максим Карев); `wiki search --author Колдина --raw` finds it; and a copy of an older-style raw without `authors` next to its `.orig` is reported by `wiki source-meta --all`. Record the results in design.md. Push, and confirm CI passes.
+- [x] 7.1 Real-page check in a scratch vault: `wiki add-source https://rossaprimavera.ru/article/7c7b02cb` records `authors: [Владимир Колдин]` (not Максим Карев); `wiki search --author Колдина --raw` finds it; and a copy of an older-style raw without `authors` next to its `.orig` is reported by `wiki source-meta --all`. Record the results in design.md. Push, and confirm CI passes.
