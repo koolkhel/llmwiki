@@ -9,7 +9,7 @@
 
 ## 3. Backfill command
 
-- [ ] 3.1 Add `wiki source-meta <raw>` and `--all` per D3 (JSON and text output, `derivable`, source page path or null). Verify with tests: an older-style raw without `authors` but with a JSON-LD `.orig` is listed with derived authors; an already-attributed source page is not listed; a `.txt` raw reports `derivable: false`; and a vault snapshot is byte-identical before and after.
+- [x] 3.1 Add `wiki source-meta <raw>` and `--all` per D3 (JSON and text output, `derivable`, source page path or null). Verify with tests: an older-style raw without `authors` but with a JSON-LD `.orig` is listed with derived authors; an already-attributed source page is not listed; a `.txt` raw reports `derivable: false`; and a vault snapshot is byte-identical before and after.
 
 ## 4. Lint
 
