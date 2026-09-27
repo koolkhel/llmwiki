@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .errors import WikiError
 from .fetch import clean_authors
-from .morph import Analyzer, Token, fold, fold_with_map, tokenize
+from .morph import Analyzer, Token, fold, fold_with_map, query_words, tokenize
 from .naming import key
 from .pages import iter_pages
 from .searchcache import LemmaCache
@@ -159,7 +159,7 @@ def search(
     author: str | None = None,
 ) -> tuple[dict, list[str]]:
     """Returns (result document, warnings)."""
-    words = [t.text for t in tokenize(unicodedata.normalize("NFC", query), compounds=False)]
+    words = query_words(unicodedata.normalize("NFC", query))
     author_words = [t.text for t in tokenize(unicodedata.normalize("NFC", author or ""), compounds=False)]
     if author is not None and not author_words:
         raise WikiError("empty_query", "--author must contain at least one word.")
@@ -174,18 +174,23 @@ def search(
     an = Analyzer(cache.load())
     terms = list({fold(w): _Term(fold(w), an.keys(w)) for w in words}.values())
 
-    def doc(path: str, title: str, type_: str, summary: str, tags: list[str], body: str, link: str) -> _Doc:
-        fields = {"title": _field(title, an), "meta": _field(" ".join([summary, *tags]), an), "body": _field(body, an)}
+    def doc(path: str, title: str, type_: str, summary: str, tags: list[str], body: str, link: str,
+            aliases: list[str] = ()) -> _Doc:
+        title_text = " · ".join([title, *aliases])  # aliases rank as title matches
+        fields = {"title": _field(title_text, an), "meta": _field(" ".join([summary, *tags]), an),
+                  "body": _field(body, an)}
         return _Doc(path, title, type_, summary, link, fields)
 
+    all_pages = iter_pages(vault) if (not raw or author_words) else []
+    aliases_by_key = {key(p.stem): p.aliases for p in all_pages if p.aliases}
     if raw:
         entries = [(r.meta, lambda r=r: doc(r.rel, r.title, "raw", "", [], r.body, f"[[{r.stem}]]"))
                    for r in iter_raw(vault)]
     else:
         entries = [
             (p.meta, lambda p=p: doc(p.rel, p.stem, p.folder_type or p.type or "unknown", p.summary, p.tags, p.body,
-                                     p.link))
-            for p in iter_pages(vault)
+                                     p.link, p.aliases))
+            for p in all_pages
             if page_type is None or p.folder_type == page_type
         ]
 
@@ -193,7 +198,9 @@ def search(
     for meta, make in entries:
         a_tier = None
         if author_words:
-            a_tier = _author_tier(_author_names(meta), author_words, an, exact)
+            names = _author_names(meta)
+            names += [alias for n in names for alias in aliases_by_key.get(key(n), [])]  # person-page aliases
+            a_tier = _author_tier(names, author_words, an, exact)
             if a_tier is None:
                 continue
         candidates.append((make(), a_tier))

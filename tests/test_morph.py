@@ -119,7 +119,7 @@ def test_fast_fold_path_matches_char_by_char():
     from llmwiki.morph import _fold_char, fold_with_map
 
     rnd = random.Random(3)
-    alphabet = "abcXYZ019 ,.-йЙёЁжЖщЩіїєґé ßİ—«»🚀́"
+    alphabet = "abcXYZ019 ,.-йЙёЁжЖщЩіїєґé ßİ—«»🚀\u0301" + "प्रशिक्षितड़ॉ\u093c\u095c" + "大语言模型的训练"
     for _ in range(300):
         s = "".join(rnd.choice(alphabet) for _ in range(rnd.randint(0, 40)))
         slow_out, slow_idx = [], []

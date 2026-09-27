@@ -107,9 +107,9 @@ Who wrote a source matters as much as what it says.
   claim. Record both, attribute each, and add a `> [!warning] Contradiction`
   callout on the affected page.
 - Keep summaries to one line. Keep pages focused, and split them when they sprawl.
-- Write in the language of the source unless the human asks otherwise.
+{{language_rule}}
 
-## Workflows
+{{language_section}}## Workflows
 
 Each workflow can be started from either agent:
 

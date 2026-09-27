@@ -8,6 +8,10 @@ to tell untouched files (safe to replace) from user-edited ones.
 
 Entries are only ever added, never removed. Run after changing any template;
 tests/test_upgrade.py fails until the registry covers the current templates.
+
+The committed JSON is the source of truth. `--from-git` can only replay templates
+that were copied verbatim; once templates carry placeholders (e.g. the wiki
+language), their historical renderings live only in the registry itself.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from llmwiki.languages import LANGUAGES  # noqa: E402
 from llmwiki.scaffold import render_workflow  # noqa: E402
 from llmwiki.upgrade import REGISTRY_PATH, UNMANAGED, content_hash, current_files  # noqa: E402
 
@@ -53,7 +58,7 @@ def historical_files(commit: str) -> dict[str, str]:
                 if dest.startswith(".claude/commands/") and not prefixed_claude:
                     dest = f".claude/commands/{name}.md"
                 out[dest] = text
-    return {k: v for k, v in out.items() if k not in UNMANAGED}
+    return {k: v for k, v in out.items() if k not in UNMANAGED and "{{" not in v}
 
 
 def load() -> dict[str, set[str]]:
@@ -87,7 +92,8 @@ def main() -> None:
     if args.from_git:
         for commit in git("log", "--format=%H", "--reverse", "--", TEMPLATES).split():
             added += add(paths, historical_files(commit))
-    added += add(paths, current_files())
+    for lang in (None, *LANGUAGES):  # AGENTS.md renders differently per wiki language
+        added += add(paths, current_files(lang))
     save(paths)
     total = sum(len(v) for v in paths.values())
     print(f"{REGISTRY_PATH.relative_to(ROOT)}: {len(paths)} paths, {total} hashes ({added} added)")

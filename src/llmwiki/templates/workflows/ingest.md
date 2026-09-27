@@ -39,6 +39,8 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
    - Create pages (with `wiki new-page`) for significant new entities and
      concepts. Don't create pages for trivia.
    - Record contradictions with existing claims as described in `AGENTS.md`.
+   - If `AGENTS.md` sets a wiki language, write in it, and add the source's own
+     terms for each concept or person to that page's `aliases`.
 6. **Check.** Run `wiki lint --json` and fix every `error`. Fix `orphan` and
    `empty_summary` warnings on pages you touched.
 7. **Index and log.** Run `wiki index --json`, then

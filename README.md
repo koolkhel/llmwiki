@@ -60,6 +60,25 @@ Each workflow is written from one template for both agents:
 Files: `.claude/commands/*.md` for Claude Code, `.agents/skills/wiki-*/SKILL.md`
 for Kimi Code.
 
+### Multilingual vaults
+
+Sources can be in any language. By default each page is written in its source's
+language. For a vault fed by several languages, pick one **wiki language** so
+each concept gets exactly one page:
+
+```bash
+wiki init ~/wikis/ai --language en        # new vault (en, ru, zh, hi, de, fr, es)
+# existing vault: add  language = "en"  to llmwiki.toml, then  wiki upgrade
+```
+
+`AGENTS.md` then tells the agent to write titles and prose in that language, to
+keep `raw/` untranslated, to list each concept's names in other languages and
+scripts under `aliases:`, to quote originals with a translation, and to record
+each source's `language`. `wiki search` matches aliases, so `языковая модель`,
+`大语言模型` or `भाषा मॉडल` all find the English `Large language model` page.
+Search handles Devanagari and other scripts with combining marks, and matches
+Chinese through overlapping two-character pieces.
+
 ### How `raw/` is protected
 
 `raw/` holds the faithful copies of your sources and must never be edited.
@@ -102,7 +121,7 @@ replaced by the `wiki-` names. It never touches `raw/`, `wiki/`, `index.md`,
 
 | Command | Purpose |
 |---|---|
-| `wiki init <dir>` | Scaffold a vault. Never overwrites existing files. |
+| `wiki init <dir> [--language en]` | Scaffold a vault (optionally with a wiki language). Never overwrites existing files. |
 | `wiki add-source <url\|file>` | Capture a URL, a `.txt`/`.md` file, or a browser-saved `.html` page (`--url` to set its address) into immutable `raw/`. |
 | `wiki new-page --type T "Title"` | Create a page whose filename is its title. |
 | `wiki search <terms>` | Find pages (or raw sources with `--raw`). Matches Russian and English word forms; `--exact` for literal words; `--author <name>` for everything by a person. |

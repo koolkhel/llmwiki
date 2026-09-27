@@ -13,15 +13,41 @@ import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
 
-FOLD_VERSION = 1
+FOLD_VERSION = 2  # 2: keep non-Latin combining marks (Indic etc.) instead of dropping them
 
-# A word: letters/digits. Text containing combining marks (e.g. Russian stress
-# marks, which never compose in NFC) uses slower patterns that keep them inside words.
-_MARKS = re.compile(r"[\u0300-\u036f]")
+# A word: letters/digits, plus any combining marks inside it (Russian stress marks,
+# Devanagari vowel signs / virama / nukta, ...). Text without marks uses the fast
+# patterns; the full mark class is built lazily (~10 ms) the first time it is needed.
 _WORD = re.compile(r"[^\W_]+")
 _COMPOUND = re.compile(r"[^\W_]+(?:-[^\W_]+)+")
-_WORD_M = re.compile(r"(?:[^\W_][\u0300-\u036f]*)+")
-_COMPOUND_M = re.compile(r"(?:[^\W_][\u0300-\u036f]*)+(?:-(?:[^\W_][\u0300-\u036f]*)+)+")
+# Quick pre-check: only text with characters outside ASCII+Cyrillic can contain marks or Han.
+_MAYBE_MARKS = re.compile(r"[^\x00-\x7f\u0400-\u04ff]")
+# Han ideographs (CJK Unified + Extension A, Compatibility, Extensions B+).
+_HAN_RUN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0003ffff]{2,}")
+# Diacritics that folding removes: the Combining Diacritical Marks blocks (Latin/Greek/Cyrillic).
+_DIACRITIC_RANGES = ((0x0300, 0x036F), (0x1AB0, 0x1AFF), (0x1DC0, 0x1DFF), (0x20D0, 0x20FF), (0xFE20, 0xFE2F))
+
+
+def _is_diacritic(ch: str) -> bool:
+    cp = ord(ch)
+    return any(a <= cp <= b for a, b in _DIACRITIC_RANGES)
+
+
+@lru_cache(maxsize=1)
+def _mark_patterns() -> tuple[re.Pattern, re.Pattern, re.Pattern]:
+    ranges: list[tuple[int, int]] = []
+    start = prev = None
+    for cp in range(0x10000):
+        if unicodedata.category(chr(cp)) in ("Mn", "Mc", "Me"):
+            if start is None:
+                start = cp
+            prev = cp
+        elif start is not None:
+            ranges.append((start, prev))
+            start = None
+    marks = "".join(rf"\u{a:04x}-\u{b:04x}" if a != b else rf"\u{a:04x}" for a, b in ranges)
+    word = rf"[^\W_](?:[^\W_]|[{marks}])*"
+    return (re.compile(f"[{marks}]"), re.compile(word), re.compile(rf"{word}(?:-{word})+"))
 
 
 def _is_cyrillic(ch: str) -> bool:
@@ -38,7 +64,7 @@ def _fold_char(ch: str) -> str:
         return "е"
     if _is_cyrillic(ch):
         return ch.casefold()  # no decomposition: keeps й distinct from и
-    return "".join(d.casefold() for d in unicodedata.normalize("NFKD", ch) if not unicodedata.combining(d))
+    return "".join(d.casefold() for d in unicodedata.normalize("NFKD", ch) if not _is_diacritic(d))
 
 
 def fold_with_map(s: str) -> tuple[str, list[int]]:
@@ -76,14 +102,43 @@ class Token:
     end: int
 
 
-def tokenize(text: str, compounds: bool = True) -> list[Token]:
-    """Words of `text` with offsets. Hyphenated compounds are also emitted joined (`нейро-сеть` -> `нейросеть`)."""
-    word, compound = (_WORD_M, _COMPOUND_M) if _MARKS.search(text) else (_WORD, _COMPOUND)
+def tokenize(text: str, compounds: bool = True, cjk: bool = True) -> list[Token]:
+    """Words of `text` with offsets.
+
+    Hyphenated compounds are also emitted joined (`нейро-сеть` -> `нейросеть`), and runs of
+    two or more Han ideographs are also emitted as their overlapping two-character pieces.
+    """
+    word, compound = _WORD, _COMPOUND
+    # Marks and Han ideographs only occur outside ASCII+Cyrillic: one fast check gates both.
+    exotic = _MAYBE_MARKS.search(text) is not None
+    if exotic:
+        marks, word_m, compound_m = _mark_patterns()
+        if marks.search(text):
+            word, compound = word_m, compound_m
     tokens = [Token(m.group(0), m.start(), m.end()) for m in word.finditer(text)]
+    extra = False
     if compounds and "-" in text:
         tokens += [Token(m.group(0).replace("-", ""), m.start(), m.end()) for m in compound.finditer(text)]
+        extra = True
+    if cjk and exotic:
+        for m in _HAN_RUN.finditer(text):
+            s, run = m.start(), m.group(0)
+            tokens += [Token(run[i:i + 2], s + i, s + i + 2) for i in range(len(run) - 1)]
+            extra = True
+    if extra:
         tokens.sort(key=lambda t: (t.start, -t.end))
     return tokens
+
+
+def query_words(text: str) -> list[str]:
+    """Query terms: words, with an all-Han word of 2+ characters replaced by its two-character pieces."""
+    out: list[str] = []
+    for t in tokenize(text, compounds=False, cjk=False):
+        if len(t.text) >= 2 and _HAN_RUN.fullmatch(t.text):
+            out += [t.text[i:i + 2] for i in range(len(t.text) - 1)]
+        else:
+            out.append(t.text)
+    return out
 
 
 def versions() -> str:

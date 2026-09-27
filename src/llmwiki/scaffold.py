@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import index, log
 from .errors import WikiError
+from .languages import LANGUAGES, schema_values, supported
 from .vault import LAYOUT_VERSION, TYPE_DIRS, Vault
 
 DIRS = ("raw", "raw/.orig", "wiki", *(f"wiki/{d}" for d in TYPE_DIRS.values()))
@@ -62,12 +63,13 @@ def render_workflow(name: str, text: str) -> dict[str, str]:
     }
 
 
-def planned_files(values: dict[str, str] | None = None) -> dict[str, str]:
+def planned_files(values: dict[str, str] | None = None, language: str | None = None) -> dict[str, str]:
     """Every file `init` writes (except index.md), vault-relative path -> content."""
     out: dict[str, str] = {}
+    all_values = {**schema_values(language), **(values or {})}
     for parts, node in _walk(_templates()):
         text = node.read_text(encoding="utf-8")
-        for k, v in (values or {}).items():
+        for k, v in all_values.items():
             text = text.replace(k, v)
         out["/".join(_dest(p) for p in parts)] = text
     for node in sorted(_workflows().iterdir(), key=lambda c: c.name):
@@ -108,7 +110,11 @@ def _git_state(root: Path, want_git: bool) -> str:
     return "initialized"
 
 
-def init_vault(target: Path, git: bool = True, today: dt.date | None = None) -> tuple[dict, list[str]]:
+def init_vault(
+    target: Path, git: bool = True, today: dt.date | None = None, language: str | None = None
+) -> tuple[dict, list[str]]:
+    if language is not None and language not in LANGUAGES:
+        raise WikiError("invalid_language", f"--language {language!r} is not supported. Supported: {supported()}.")
     root = Path(target).expanduser().resolve()
     if root.exists() and not root.is_dir():
         raise WikiError("not_a_directory", f"{root} exists and is not a directory.", path=str(root))
@@ -124,7 +130,7 @@ def init_vault(target: Path, git: bool = True, today: dt.date | None = None) -> 
             created.append(f"{d}/")
 
     values = {"{{layout_version}}": str(LAYOUT_VERSION), "{{date}}": today.isoformat()}
-    for rel, text in planned_files(values).items():
+    for rel, text in planned_files(values, language).items():
         dest = root / rel
         if dest.exists():
             skipped.append(rel)
@@ -161,11 +167,13 @@ def init_vault(target: Path, git: bool = True, today: dt.date | None = None) -> 
             "CLAUDE.md predates the shared AGENTS.md schema and was left unchanged. Merge any customisations "
             f"into AGENTS.md, then replace CLAUDE.md with the single line `{SCHEMA_IMPORT}`."
         )
-    return {"vault": str(root), "created": created, "skipped": skipped, "git": git_state}, warnings
+    return {"vault": str(root), "language": language, "created": created, "skipped": skipped, "git": git_state}, warnings
 
 
 def render_text(res: dict) -> str:
     lines = [f"vault: {res['vault']}"]
+    if res.get("language"):
+        lines.append(f"language: {LANGUAGES[res['language']]} ({res['language']})")
     lines += [f"  created  {p}" for p in res["created"]]
     lines += [f"  skipped  {p} (exists)" for p in res["skipped"]]
     lines.append(f"git: {res['git']}")

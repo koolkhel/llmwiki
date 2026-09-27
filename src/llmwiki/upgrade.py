@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .scaffold import planned_files
 from .vault import Vault
+from .vault import language as vault_language
 
 REGISTRY_PATH = Path(__file__).resolve().parent / "templates" / "known_hashes.json"
 # Rendered by init but not template-managed: placeholders / content that the vault owns.
@@ -28,9 +29,9 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
-def current_files() -> dict[str, str]:
-    """Template-managed vault path -> current content."""
-    return {k: v for k, v in planned_files().items() if k not in UNMANAGED}
+def current_files(language: str | None = None) -> dict[str, str]:
+    """Template-managed vault path -> current content, for a vault's wiki language."""
+    return {k: v for k, v in planned_files(language=language).items() if k not in UNMANAGED}
 
 
 def registry() -> dict[str, frozenset[str]]:
@@ -71,7 +72,7 @@ def _replacement(obsolete: str, current: dict[str, str]) -> str | None:
 def plan(vault: Vault) -> list[Item]:
     """What `wiki upgrade` would do. Reads only template-managed files."""
     reg = registry()
-    current = current_files()
+    current = current_files(vault_language(vault))
     items: list[Item] = []
     for path, text in current.items():
         f = vault.root / path
@@ -144,7 +145,7 @@ def run(vault: Vault, dry_run: bool = False) -> tuple[dict, list[str]]:
             target = f" into {i.replaced_by}" if i.replaced_by else ""
             warnings.append(f"{i.path} was edited but is no longer used; merge your edits{target}, then delete it.")
     if not dry_run:
-        current = current_files()
+        current = current_files(vault_language(vault))
         for i in items:
             if i.action in ("create", "update"):
                 _atomic_write(vault.root / i.path, current[i.path])

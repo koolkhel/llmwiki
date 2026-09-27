@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import WikiError
+from .languages import LANGUAGES, supported
 
 MARKER = "llmwiki.toml"
 ENV_VAR = "LLMWIKI_VAULT"
@@ -91,3 +93,22 @@ def find_vault(
         f"No vault found: no {MARKER} in {start} or any parent. "
         f"Pass --vault <dir>, set ${ENV_VAR}, or run from inside a vault (create one with `wiki init <dir>`).",
     )
+
+
+def language(vault: Vault) -> str | None:
+    """The vault's wiki language code from llmwiki.toml, or None when unset."""
+    try:
+        data = tomllib.loads(vault.marker.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
+        raise WikiError("invalid_language", f"{vault.marker}: cannot parse ({e}).") from None
+    code = data.get("language")
+    if code is None:
+        return None
+    if not isinstance(code, str) or code not in LANGUAGES:
+        raise WikiError(
+            "invalid_language",
+            f"{vault.marker}: language = {code!r} is not supported. Supported: {supported()}.",
+        )
+    return code

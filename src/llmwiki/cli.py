@@ -92,12 +92,15 @@ def _root() -> None:
 def init_cmd(
     directory: Annotated[Path, typer.Argument(help="Vault directory to create or complete.")],
     no_git: Annotated[bool, typer.Option("--no-git", help="Do not run `git init`.")] = False,
+    language: Annotated[
+        Optional[str], typer.Option("--language", help="Wiki language code (en, ru, zh, hi, de, fr, es).")
+    ] = None,
     json_: JsonOpt = False,
 ) -> None:
-    """Scaffold a vault: layout, CLAUDE.md schema, Claude Code commands. Never overwrites files."""
+    """Scaffold a vault: layout, AGENTS.md schema, agent workflows. Never overwrites files."""
 
     def body() -> Outcome:
-        res, warnings = scaffold.init_vault(directory, git=not no_git)
+        res, warnings = scaffold.init_vault(directory, git=not no_git, language=language)
         return Outcome(res, scaffold.render_text(res), warnings=warnings)
 
     run(json_, body)

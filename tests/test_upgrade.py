@@ -15,8 +15,11 @@ from llmwiki.vault import Vault
 
 
 def missing_from_registry() -> list[str]:
+    from llmwiki.languages import LANGUAGES
+
     reg = upgrade.registry()
-    return [p for p, text in upgrade.current_files().items() if upgrade.content_hash(text) not in reg.get(p, ())]
+    return sorted({p for lang in (None, *LANGUAGES) for p, text in upgrade.current_files(lang).items()
+                   if upgrade.content_hash(text) not in reg.get(p, ())})
 
 
 # --- 1.2 registry completeness -------------------------------------------------------
@@ -29,7 +32,8 @@ def test_registry_covers_current_templates():
 
 def test_registry_check_catches_unregistered_template_change(monkeypatch):
     real = upgrade.current_files()
-    monkeypatch.setattr(upgrade, "current_files", lambda: {**real, "AGENTS.md": real["AGENTS.md"] + "\nnew rule\n"})
+    monkeypatch.setattr(upgrade, "current_files",
+                        lambda lang=None: {**real, "AGENTS.md": real["AGENTS.md"] + "\nnew rule\n"})
     assert missing_from_registry() == ["AGENTS.md"]
 
 

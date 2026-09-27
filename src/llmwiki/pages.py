@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 from .errors import WikiError
+from .fetch import clean_authors
 from .naming import EXT, key, nfc, title_to_stem
 from .vault import DIR_TYPES, PAGE_TYPES, Vault
 
@@ -101,6 +102,12 @@ class Page:
     def tags(self) -> list[str]:
         t = (self.meta or {}).get("tags")
         return [str(x) for x in t] if isinstance(t, list) else []
+
+    @property
+    def aliases(self) -> list[str]:
+        """Frontmatter `aliases` (a list or a single string), `[[...]]` unwrapped."""
+        a = (self.meta or {}).get("aliases")
+        return clean_authors(a if isinstance(a, list) else [a]) if a else []
 
     @property
     def link(self) -> str:
