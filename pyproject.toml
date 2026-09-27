@@ -1,13 +1,31 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "llmwiki"
 version = "0.1.0"
-description = "Deterministic bookkeeping CLI for an LLM-maintained markdown wiki (the LLM Wiki pattern), driven by Claude Code."
+description = "Deterministic bookkeeping CLI for an LLM-maintained markdown wiki (the LLM Wiki pattern), driven by Claude Code or Kimi Code."
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Iurii Lunev", email = "koolkhel@mail.ru" }]
+keywords = ["llm", "wiki", "knowledge-base", "obsidian", "claude-code", "kimi-code", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Natural Language :: English",
+    "Natural Language :: Russian",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
 dependencies = [
     "typer>=0.12",
     "pyyaml>=6",
@@ -23,6 +41,10 @@ dependencies = [
     "pymorphy3>=2.0",
     "snowballstemmer>=2.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/koolkhel/llmwiki"
+Issues = "https://github.com/koolkhel/llmwiki/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

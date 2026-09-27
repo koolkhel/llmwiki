@@ -1,5 +1,7 @@
 # llmwiki
 
+[![tests](https://github.com/koolkhel/llmwiki/actions/workflows/test.yml/badge.svg)](https://github.com/koolkhel/llmwiki/actions/workflows/test.yml)
+
 A small, deterministic Python CLI (`wiki`) for the
 [LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f):
 an LLM incrementally maintains a persistent, cross-linked markdown wiki built
@@ -23,6 +25,7 @@ directories.
 Requires Python 3.12 or newer.
 
 ```bash
+git clone https://github.com/koolkhel/llmwiki.git && cd llmwiki
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 mkdir -p ~/.local/bin && ln -sf "$PWD/.venv/bin/wiki" ~/.local/bin/wiki   # make `wiki` callable from vaults
@@ -102,3 +105,7 @@ stdout. Exit codes are 0 (ok), 1 (problems reported, e.g. lint errors) and
 ```
 
 Tests use synthetic fixtures only and never touch the network.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
