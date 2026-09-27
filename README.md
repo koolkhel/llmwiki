@@ -108,6 +108,32 @@ stdout. Exit codes are 0 (ok), 1 (problems reported, e.g. lint errors) and
 
 Tests use synthetic fixtures only and never touch the network.
 
+### Spec-driven with OpenSpec
+
+The project is developed with [OpenSpec](https://github.com/Fission-AI/OpenSpec),
+a spec-driven workflow for AI coding assistants. Behaviour is written down as
+requirements with testable scenarios before it is implemented:
+
+- `openspec/specs/`: the current specs, one per capability (`cli-conventions`,
+  `vault-init`, `source-capture`, `page-naming`, `wiki-lint`, `wiki-navigation`).
+- `openspec/changes/archive/`: every completed change, with its proposal,
+  design (including decisions, spike results and measurements), delta specs
+  and task list.
+
+A change goes explore → propose → apply → archive. Archiving merges the
+change's delta specs into `openspec/specs/`. The workflows are installed for
+both agents:
+
+| Step | Claude Code | Kimi Code |
+|---|---|---|
+| Think it through | `/opsx:explore` | `/skill:openspec-explore` |
+| Write proposal, specs, design, tasks | `/opsx:propose <name>` | `/skill:openspec-propose <name>` |
+| Implement the tasks | `/opsx:apply` | `/skill:openspec-apply-change` |
+| Sync specs and archive | `/opsx:archive` | `/skill:openspec-archive-change` |
+
+The `openspec` CLI (`npm install -g @fission-ai/openspec`) provides
+`openspec list`, `openspec show <spec>` and `openspec validate`.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
