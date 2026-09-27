@@ -3,7 +3,7 @@ description: Answer a question from the wiki, with citations
 argument-hint: <question>
 ---
 
-Answer this question using the wiki, following `CLAUDE.md`: $ARGUMENTS
+Answer this question using the wiki, following `AGENTS.md`: $ARGUMENTS
 
 1. **Find.** Read `index.md`, then run `wiki search <key terms> --json`. Search
    matches word forms, so try synonyms and related terms rather than

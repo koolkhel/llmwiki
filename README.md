@@ -7,9 +7,9 @@ from curated raw sources.
 
 The split of responsibilities:
 
-- **Claude Code is the brain.** It reads sources, writes and updates wiki
-  pages, and spots contradictions, guided by the vault's `CLAUDE.md` and its
-  `/ingest`, `/query` and `/lint` slash commands.
+- **A coding agent is the brain.** Claude Code or Kimi Code reads sources,
+  writes and updates wiki pages, and spots contradictions, guided by the vault's
+  `AGENTS.md` schema and its ingest, query and lint workflows.
 - **`wiki` is the bookkeeper.** It captures sources, names pages, resolves
   links, lints structure, and generates `index.md` and `log.md`. It never
   calls an LLM and needs no API key.
@@ -32,11 +32,51 @@ wiki --help
 ## Use
 
 ```bash
-wiki init ~/wikis/research          # scaffold a vault (git init, CLAUDE.md, slash commands)
-cd ~/wikis/research && claude       # then: /ingest https://example.org/some-article
+wiki init ~/wikis/research          # scaffold a vault (git init, AGENTS.md schema, workflows)
+cd ~/wikis/research && claude       # Claude Code: /ingest https://example.org/some-article
+cd ~/wikis/research && kimi         # Kimi Code:   /skill:wiki-ingest https://example.org/some-article
 ```
 
 Open the same directory in Obsidian to browse it.
+
+## Agents
+
+A vault works with both agents at once. The schema is `AGENTS.md`, and
+`CLAUDE.md` only imports it (`@AGENTS.md`), so there is one file to edit.
+Each workflow is written from one template for both agents:
+
+| Workflow | Claude Code | Kimi Code |
+|---|---|---|
+| ingest | `/ingest <url\|file>` | `/skill:wiki-ingest <url\|file>` |
+| query | `/query <question>` | `/skill:wiki-query <question>` |
+| lint | `/lint` | `/skill:wiki-lint` |
+
+Files: `.claude/commands/*.md` for Claude Code, `.agents/skills/wiki-*/SKILL.md`
+for Kimi Code.
+
+### How `raw/` is protected
+
+`raw/` holds the faithful copies of your sources and must never be edited.
+
+| Agent / mode | Guard |
+|---|---|
+| Claude Code | `.claude/settings.json` denies edits under `raw/`, `index.md` and `log.md`. |
+| Kimi Code, Always Ask | You approve every write and see the diff first. |
+| Kimi Code, Ask When Needed | The model follows `AGENTS.md`; in testing it refused edits to `raw/`. |
+| Kimi Code, Never Ask / `--auto` | The model only. |
+
+Kimi Code ignores project-level permission rules (`.kimi-code/local.toml`), so
+`wiki init` writes none. In every case, `wiki lint` reports `raw_modified` if a
+raw file changes after capture, and `git checkout -- raw/` restores it.
+
+### Migrating an older vault
+
+Vaults created before `AGENTS.md` keep their full schema in `CLAUDE.md`. Run
+`wiki init <vault>`: it adds `AGENTS.md` and the Kimi skills, leaves your files
+untouched, and warns about `CLAUDE.md`. Then merge any customisations from
+`CLAUDE.md` into `AGENTS.md`, and replace `CLAUDE.md` with the single line
+`@AGENTS.md`. To get the updated workflow wording in `.claude/commands/`, delete
+those files and run `wiki init` again.
 
 | Command | Purpose |
 |---|---|

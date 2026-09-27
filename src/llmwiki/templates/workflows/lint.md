@@ -3,7 +3,7 @@ description: Health-check the wiki (structural plus semantic) and fix what you c
 argument-hint: [area or tag to focus on]
 ---
 
-Health-check the wiki, following `CLAUDE.md`. Focus: $ARGUMENTS
+Health-check the wiki, following `AGENTS.md`. Focus: $ARGUMENTS
 
 1. **Structural.** Run `wiki lint --json`.
    - Fix every `error`: dead links (create the page with `wiki new-page`, or
@@ -13,7 +13,8 @@ Health-check the wiki, following `CLAUDE.md`. Focus: $ARGUMENTS
    - `raw_modified` or `raw_missing`: do **not** "fix" raw files. Report them
      to the human, who can restore them from git.
    - Warnings: link orphans from related pages, and fill empty summaries.
-   - Mention `pending_source` items and offer to `/ingest` them.
+   - Mention `pending_source` items and offer to run the **ingest** workflow on
+     them (`/ingest` in Claude Code, `/skill:wiki-ingest` in Kimi Code).
 2. **Semantic.** Read across the wiki (or the focus area) and look for:
    - contradictions between pages that are not yet flagged,
    - claims with no source, or stale claims superseded by newer sources,

@@ -2,12 +2,15 @@
 
 Templates live in `templates/vault/`. Path parts named `dot-x` are installed
 as `.x` (so packaging tools don't treat them as hidden or as ignore files).
+Each workflow in `templates/workflows/` is rendered twice, from the same body:
+as a Claude Code command and as a Kimi Code (`.agents/skills`) skill.
 Existing files are never modified.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import re
 import shutil
 import subprocess
 import sys
@@ -21,10 +24,56 @@ from .errors import WikiError
 from .vault import LAYOUT_VERSION, TYPE_DIRS, Vault
 
 DIRS = ("raw", "raw/.orig", "wiki", *(f"wiki/{d}" for d in TYPE_DIRS.values()))
+SCHEMA_IMPORT = "@AGENTS.md"
+_FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
 
 def _templates() -> Traversable:
     return files("llmwiki") / "templates" / "vault"
+
+
+def _workflows() -> Traversable:
+    return files("llmwiki") / "templates" / "workflows"
+
+
+def _split_workflow(text: str) -> tuple[dict[str, str], str]:
+    """Frontmatter as raw `key: value` strings (not YAML-parsed, so values pass through verbatim) and body."""
+    m = _FRONTMATTER.match(text)
+    if not m:
+        raise ValueError("workflow template lacks frontmatter")
+    fields = {}
+    for line in m.group(1).splitlines():
+        k, sep, v = line.partition(":")
+        if sep:
+            fields[k.strip()] = v.strip()
+    return fields, text[m.end():]
+
+
+def render_workflow(name: str, text: str) -> dict[str, str]:
+    """Vault-relative path -> content, for both agents."""
+    fm, body = _split_workflow(text)
+    claude = [f"description: {fm['description']}"]
+    if "argument-hint" in fm:
+        claude.append(f"argument-hint: {fm['argument-hint']}")
+    kimi = [f"name: wiki-{name}", f"description: {fm['description']}"]
+    return {
+        f".claude/commands/{name}.md": "---\n" + "\n".join(claude) + "\n---\n" + body,
+        f".agents/skills/wiki-{name}/SKILL.md": "---\n" + "\n".join(kimi) + "\n---\n" + body,
+    }
+
+
+def planned_files(values: dict[str, str] | None = None) -> dict[str, str]:
+    """Every file `init` writes (except index.md), vault-relative path -> content."""
+    out: dict[str, str] = {}
+    for parts, node in _walk(_templates()):
+        text = node.read_text(encoding="utf-8")
+        for k, v in (values or {}).items():
+            text = text.replace(k, v)
+        out["/".join(_dest(p) for p in parts)] = text
+    for node in sorted(_workflows().iterdir(), key=lambda c: c.name):
+        if node.name.endswith(".md"):
+            out.update(render_workflow(node.name[:-3], node.read_text(encoding="utf-8")))
+    return out
 
 
 def _walk(node: Traversable, parts: tuple[str, ...] = ()) -> Iterator[tuple[tuple[str, ...], Traversable]]:
@@ -38,8 +87,8 @@ def _walk(node: Traversable, parts: tuple[str, ...] = ()) -> Iterator[tuple[tupl
 
 
 def template_files() -> list[str]:
-    """Destination paths (vault-relative) of all packaged template files."""
-    return ["/".join(_dest(p) for p in parts) for parts, _ in _walk(_templates())]
+    """Destination paths (vault-relative) of all files rendered from packaged templates."""
+    return list(planned_files())
 
 
 def _dest(part: str) -> str:
@@ -75,19 +124,20 @@ def init_vault(target: Path, git: bool = True, today: dt.date | None = None) -> 
             created.append(f"{d}/")
 
     values = {"{{layout_version}}": str(LAYOUT_VERSION), "{{date}}": today.isoformat()}
-    for parts, node in _walk(_templates()):
-        rel = "/".join(_dest(p) for p in parts)
+    for rel, text in planned_files(values).items():
         dest = root / rel
         if dest.exists():
             skipped.append(rel)
             continue
-        text = node.read_text(encoding="utf-8")
-        for k, v in values.items():
-            text = text.replace(k, v)
         dest.parent.mkdir(parents=True, exist_ok=True)
         with dest.open("x", encoding="utf-8") as f:
             f.write(text)
         created.append(rel)
+
+    claude_md = root / "CLAUDE.md"
+    legacy_schema = "CLAUDE.md" in skipped and SCHEMA_IMPORT not in (
+        line.strip() for line in claude_md.read_text(encoding="utf-8").splitlines()
+    )
 
     vault = Vault(root)
     if vault.index_path.exists():
@@ -103,8 +153,13 @@ def init_vault(target: Path, git: bool = True, today: dt.date | None = None) -> 
     if shutil.which("wiki") is None:
         exe = Path(sys.executable).parent / "wiki"
         warnings.append(
-            "`wiki` is not on PATH, but the vault's Claude Code commands call it by name. "
+            "`wiki` is not on PATH, but the vault's agent workflows call it by name. "
             f"Fix: mkdir -p ~/.local/bin && ln -sf {exe} ~/.local/bin/wiki (and ensure ~/.local/bin is on PATH)."
+        )
+    if legacy_schema:
+        warnings.append(
+            "CLAUDE.md predates the shared AGENTS.md schema and was left unchanged. Merge any customisations "
+            f"into AGENTS.md, then replace CLAUDE.md with the single line `{SCHEMA_IMPORT}`."
         )
     return {"vault": str(root), "created": created, "skipped": skipped, "git": git_state}, warnings
 
@@ -115,4 +170,5 @@ def render_text(res: dict) -> str:
     lines += [f"  skipped  {p} (exists)" for p in res["skipped"]]
     lines.append(f"git: {res['git']}")
     lines.append(f"next: cd {res['vault']} && claude   # then /ingest <url or file>")
+    lines.append(f"  or: cd {res['vault']} && kimi     # then /skill:wiki-ingest <url or file>")
     return "\n".join(lines)

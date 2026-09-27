@@ -1,11 +1,9 @@
-# vault-init Specification
+## RENAMED Requirements
 
-## Purpose
+- FROM: `### Requirement: Claude Code integration files`
+- TO: `### Requirement: Agent integration files`
 
-Scaffolds a new LLM wiki vault — directory layout, Claude Code schema, slash commands and permissions — so that opening the directory in Claude Code (and Obsidian) is all that is needed to start ingesting sources.
-
-## Requirements
-
+## MODIFIED Requirements
 
 ### Requirement: Scaffold vault layout
 `wiki init <dir>` SHALL create, inside `<dir>` (creating `<dir>` if absent): `llmwiki.toml`, `raw/`, `raw/.orig/`, `wiki/sources/`, `wiki/entities/`, `wiki/concepts/`, `wiki/analyses/`, `index.md`, `log.md`, `AGENTS.md`, `CLAUDE.md`, and `.gitignore`. `llmwiki.toml` SHALL record the vault layout version.
@@ -53,26 +51,7 @@ For each workflow (`ingest`, `query`, `lint`), `wiki init` SHALL write a Claude 
 - **WHEN** init completes
 - **THEN** no file under `.kimi-code/` has been written, and `.gitignore` contains `.kimi-code/local.toml`
 
-### Requirement: Never overwrite existing files
-`wiki init` SHALL NOT modify any existing file. On a directory that already contains some of the scaffold files it SHALL create only the missing ones and report which were created and which were skipped.
-
-#### Scenario: Re-running init on an evolved vault
-- **WHEN** the user has edited `CLAUDE.md` and runs `wiki init` on the same vault again
-- **THEN** `CLAUDE.md` is unchanged, any missing scaffold files are created, and the report lists `CLAUDE.md` as skipped
-
-### Requirement: Git repository
-`wiki init` SHALL initialise a git repository in the vault if it is not already inside one and `git` is available, unless `--no-git` is given. It SHALL NOT create commits.
-
-#### Scenario: No git requested
-- **WHEN** the user runs `wiki init <dir> --no-git`
-- **THEN** no `.git` directory is created
-
-### Requirement: CLI availability check
-`wiki init` SHALL warn (without failing) when the `wiki` executable is not resolvable on `PATH`, because the generated Claude Code files invoke it by name.
-
-#### Scenario: wiki not on PATH
-- **WHEN** init is run via an absolute path to the venv's executable and `wiki` is not on `PATH`
-- **THEN** init succeeds and prints a warning with a suggested fix
+## ADDED Requirements
 
 ### Requirement: Legacy schema warning
 When `wiki init` runs on a directory that already has a `CLAUDE.md` which does not import `AGENTS.md`, it SHALL leave that file unchanged, as the never-overwrite rule requires, and SHALL emit a warning. The warning explains that the schema now lives in `AGENTS.md` and that `CLAUDE.md` should be reduced to `@AGENTS.md` after merging any customisations into `AGENTS.md`.

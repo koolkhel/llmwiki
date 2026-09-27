@@ -9,3 +9,6 @@ Thumbs.db
 
 # Claude Code per-user settings
 .claude/settings.local.json
+
+# Kimi Code per-machine settings
+.kimi-code/local.toml

@@ -3,14 +3,14 @@ description: Capture a URL or text file and fold it into the wiki
 argument-hint: <url | path to .txt/.md> [focus or notes]
 ---
 
-Ingest this source into the wiki, following `CLAUDE.md`: $ARGUMENTS
+Ingest this source into the wiki, following `AGENTS.md`: $ARGUMENTS
 
 If no source was given, run `wiki status --json` and offer to ingest the pending
 raw sources it lists. Skip step 1 for those, since they are already captured.
 
 1. **Capture.** Run `wiki add-source "<url or path>" --json`.
-   - Exit 2: stop and report `error.message`. Do not fall back to WebFetch or
-     pasting.
+   - Exit 2: stop and report `error.message`. Do not fall back to a web-fetch
+     tool or pasting.
    - If `duplicate_of` is set and `status` is `ingested`, tell the human it is
      already in the wiki and stop, unless they asked for a re-read.
    - Otherwise continue with the returned `path`.
@@ -25,7 +25,7 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
      source page to their `sources:`, bump `updated`, and cross-link.
    - Create pages (with `wiki new-page`) for significant new entities and
      concepts. Don't create pages for trivia.
-   - Record contradictions with existing claims as described in `CLAUDE.md`.
+   - Record contradictions with existing claims as described in `AGENTS.md`.
 6. **Check.** Run `wiki lint --json` and fix every `error`. Fix `orphan` and
    `empty_summary` warnings on pages you touched.
 7. **Index and log.** Run `wiki index --json`, then
