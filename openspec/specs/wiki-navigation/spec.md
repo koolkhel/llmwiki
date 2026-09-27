@@ -45,6 +45,8 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 
 `--author <name>` SHALL restrict results to pages (with `--raw`: raw files) whose frontmatter `authors` contains a name matching every word of `<name>`, using the exact and lemma tiers (only exact with `--exact`). Wikilink brackets and aliases in `authors` entries are ignored for matching. An author entry that links to a page SHALL also match through that page's `aliases`. When `--author` is given, query terms are optional: without them, all pages by that author are returned, sorted by title.
 
+`--since <date>` and `--until <date>` SHALL restrict results to pages (with `--raw`: raw files) whose frontmatter `published` falls within the range, inclusive, where `<date>` is `YYYY`, `YYYY-MM` or `YYYY-MM-DD` (a partial date covers its whole year or month). Pages without a parseable `published` SHALL be excluded when either filter is given. `--sort oldest|newest` SHALL order results by `published` (undated last), replacing the relevance order. When `--since`, `--until` or `--sort` is given, query terms SHALL be optional, as with `--author`. An invalid date SHALL be a usage error. Each result SHALL include `published` when the page has one.
+
 #### Scenario: Title outranks body
 - **WHEN** page A has the term in its title and page B only in its body
 - **THEN** A is listed before B
@@ -117,6 +119,18 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 - **WHEN** a source page has `authors: ["[[Fei-Fei Li]]"]`, and `wiki/entities/Fei-Fei Li.md` has `aliases: [李飞飞]`, and the user runs `wiki search --author 李飞飞`
 - **THEN** that source page is returned
 
+#### Scenario: Filter by period
+- **WHEN** source pages are published 2026-01-15, 2026-04-09 and 2026-08-02, and the user runs `wiki search --since 2026-04 --until 2026-06`
+- **THEN** only the 2026-04-09 page is returned
+
+#### Scenario: Chronological order
+- **WHEN** the user runs `wiki search ИИ --sort oldest`
+- **THEN** matching pages are listed from the earliest `published` to the latest, with undated pages last
+
+#### Scenario: Invalid date
+- **WHEN** the user runs `wiki search --since 2026-13`
+- **THEN** the command exits with code 2
+
 ### Requirement: Vault status
 `wiki status` SHALL report the vault path, page counts per type, total and pending raw source counts, the list of pending raw sources, whether `index.md` is stale, and the most recent log entry heading. It SHALL also report template freshness: the counts of template-managed files that are outdated (a known older version), edited, missing, and obsolete, plus the paths with a pending `<path>.new` merge. The human-readable output SHALL suggest `wiki upgrade` when anything is outdated, missing or obsolete. Computing template freshness SHALL NOT write any file.
 
@@ -146,3 +160,22 @@ Search MAY store derived word-form data in `.llmwiki/cache/` inside the vault. T
 #### Scenario: Unwritable cache
 - **WHEN** `.llmwiki/cache/` cannot be written
 - **THEN** `wiki search` still returns correct results and exits 0
+
+### Requirement: Timeline
+`wiki timeline <page>` SHALL list, in publication order, the source pages connected to a wiki page given by title or vault path: the source pages listed in its `sources` frontmatter, the source pages that link to it, and, for a page tagged `person`, the source pages whose `authors` resolve to it. Duplicates are merged. `wiki timeline --author <name>` SHALL instead list the source pages whose authors match `<name>` as in search. Each entry SHALL give `published` (as recorded on the source page, or the raw file's more precise value when available), the source page's `title`, `link`, `path`, `authors` and `summary`. Entries are sorted by the most precise date available, with undated entries last and marked `undated`. `--since`/`--until` SHALL filter as in search, and `--json` SHALL return one document. An unknown page SHALL be an error (exit code 2). The command SHALL NOT modify any file.
+
+#### Scenario: Concept timeline
+- **WHEN** `Large language model` is linked from source pages published 2026-08-02 and 2026-01-15, lists a third, undated source page in its `sources`, and the user runs `wiki timeline "Large language model"`
+- **THEN** the output lists the 2026-01-15 source, then the 2026-08-02 source, then the undated one
+
+#### Scenario: Person timeline
+- **WHEN** the person page `Анатолий Янченко` exists and two source pages have `authors: ["[[Анатолий Янченко]]"]`
+- **THEN** `wiki timeline "Анатолий Янченко"` lists both, in publication order
+
+#### Scenario: Timeline by author name
+- **WHEN** the user runs `wiki timeline --author Янченко --since 2026`
+- **THEN** only that author's sources published in 2026 or later are listed, in order
+
+#### Scenario: Same-day ordering uses time
+- **WHEN** two sources are both published on 2026-04-09, with raw times 06:25+03:00 and 18:00+03:00
+- **THEN** the 06:25 source comes first
