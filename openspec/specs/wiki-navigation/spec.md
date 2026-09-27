@@ -30,12 +30,12 @@ Provides the navigation layer of the pattern — a generated catalog (`index.md`
 - **THEN** it fails with a usage error and `log.md` is unchanged
 
 ### Requirement: Search pages
-`wiki search <query>` SHALL return pages matching all query terms, searching title, summary, tags and body. A term matches a page when it matches in at least one of three tiers:
+`wiki search <query>` SHALL return pages matching all query terms, searching title, aliases, summary, tags and body. `aliases` (a frontmatter list, entries may be wikilinks) SHALL be treated as part of the title field for matching and ranking. A term matches a page when it matches in at least one of three tiers:
 1. **exact**: the term equals a word of the page after folding;
 2. **lemma**: the term and a word of the page share a dictionary form (Russian) or stem (English), taking every possible dictionary form of an ambiguous word into account;
 3. **substring**: the folded term occurs anywhere in the folded text.
 
-Folding SHALL be case-insensitive and SHALL ignore Latin diacritics. `ё` SHALL match `е`, and Cyrillic `й` SHALL remain distinct from `и`.
+Folding SHALL be case-insensitive and SHALL ignore Latin diacritics. `ё` SHALL match `е`, and Cyrillic `й` SHALL remain distinct from `и`. Combining marks of non-Latin scripts (for example Devanagari vowel signs, virama and nukta) SHALL be kept by folding and SHALL NOT split words. A run of CJK ideographs SHALL, in addition to being one word, be indexed as its overlapping two-character sequences, so that a query of two or more ideographs contained in the run matches at the exact tier.
 
 Results SHALL be ranked so that title matches outrank summary/tag matches, which outrank body-only matches. Within the same field, exact matches SHALL outrank lemma matches, which SHALL outrank substring matches.
 
@@ -43,7 +43,7 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 
 `--type` SHALL restrict results to one page type, `--limit` SHALL cap the count (default 20), and `--raw` SHALL search raw sources instead of wiki pages, with the same matching. `--exact` SHALL disable the lemma and substring tiers.
 
-`--author <name>` SHALL restrict results to pages (with `--raw`: raw files) whose frontmatter `authors` contains a name matching every word of `<name>`, using the exact and lemma tiers (only exact with `--exact`). Wikilink brackets and aliases in `authors` entries are ignored for matching. When `--author` is given, query terms are optional: without them, all pages by that author are returned, sorted by title.
+`--author <name>` SHALL restrict results to pages (with `--raw`: raw files) whose frontmatter `authors` contains a name matching every word of `<name>`, using the exact and lemma tiers (only exact with `--exact`). Wikilink brackets and aliases in `authors` entries are ignored for matching. An author entry that links to a page SHALL also match through that page's `aliases`. When `--author` is given, query terms are optional: without them, all pages by that author are returned, sorted by title.
 
 #### Scenario: Title outranks body
 - **WHEN** page A has the term in its title and page B only in its body
@@ -100,6 +100,22 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 #### Scenario: Raw files by author
 - **WHEN** the user runs `wiki search --author Колдин --raw`
 - **THEN** raw files whose frontmatter `authors` include Колдин are returned
+
+#### Scenario: Query in another language finds the concept via aliases
+- **WHEN** the English page `Large language model` has `aliases: [Большая языковая модель, 大语言模型, बड़ा भाषा मॉडल]`, and the user searches `языковая модель`, `大语言模型` or `भाषा मॉडल`
+- **THEN** that page is returned, ranked as a title match
+
+#### Scenario: Hindi words stay whole
+- **WHEN** a page body contains `प्रशिक्षित` and another contains `परशिकषित`
+- **THEN** searching `प्रशिक्षित` returns only the first page at the exact tier
+
+#### Scenario: Chinese two-character matching
+- **WHEN** a page body contains `大语言模型的训练需要大量数据`, and the user searches `模型` or `训练`
+- **THEN** the page is returned with `match: "exact"`
+
+#### Scenario: Author found via person-page alias
+- **WHEN** a source page has `authors: ["[[Fei-Fei Li]]"]`, and `wiki/entities/Fei-Fei Li.md` has `aliases: [李飞飞]`, and the user runs `wiki search --author 李飞飞`
+- **THEN** that source page is returned
 
 ### Requirement: Vault status
 `wiki status` SHALL report the vault path, page counts per type, total and pending raw source counts, the list of pending raw sources, whether `index.md` is stale, and the most recent log entry heading. It SHALL also report template freshness: the counts of template-managed files that are outdated (a known older version), edited, missing, and obsolete, plus the paths with a pending `<path>.new` merge. The human-readable output SHALL suggest `wiki upgrade` when anything is outdated, missing or obsolete. Computing template freshness SHALL NOT write any file.
