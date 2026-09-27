@@ -88,7 +88,8 @@ those files and run `wiki init` again.
 | `wiki init <dir>` | Scaffold a vault. Never overwrites existing files. |
 | `wiki add-source <url\|file>` | Capture a URL, a `.txt`/`.md` file, or a browser-saved `.html` page (`--url` to set its address) into immutable `raw/`. |
 | `wiki new-page --type T "Title"` | Create a page whose filename is its title. |
-| `wiki search <terms>` | Find pages (or raw sources with `--raw`). Matches Russian and English word forms; `--exact` for literal words. |
+| `wiki search <terms>` | Find pages (or raw sources with `--raw`). Matches Russian and English word forms; `--exact` for literal words; `--author <name>` for everything by a person. |
+| `wiki source-meta <raw>\|--all` | Re-derive metadata (e.g. authors) from stored originals; `--all` lists sources whose source page lacks authors. Read-only. |
 | `wiki index` | Regenerate `index.md`. |
 | `wiki log <op> <message>` | Append to `log.md`. |
 | `wiki lint [--strict]` | Structural health check. |

@@ -33,6 +33,9 @@ def check(vault: Vault) -> list[Finding]:
     raws = iter_raw(vault)
     resolver = Resolver(vault, pages)
     out: list[Finding] = []
+    raw_authors_by_rel = {
+        r.rel: a for r in raws if isinstance(a := (r.meta or {}).get("authors"), list) and a
+    }
     by_key: dict[str, list] = defaultdict(list)
     inbound: dict[str, set[str]] = defaultdict(set)
 
@@ -71,6 +74,13 @@ def check(vault: Vault) -> list[Finding]:
             if p.folder_type == "source" and isinstance(raw, str) and raw.strip():
                 if not (vault.root / raw.strip()).is_file():
                     out.append(Finding("error", "raw_missing", p.rel, f"`raw` points to a missing file: {raw}.", raw))
+                raw_authors = raw_authors_by_rel.get(raw.strip().removeprefix("./"))
+                page_authors = p.meta.get("authors")
+                if raw_authors and not (isinstance(page_authors, list) and page_authors):
+                    out.append(Finding(
+                        "warning", "missing_authors", p.rel,
+                        f"Raw file records authors ({', '.join(map(str, raw_authors))}) but this page has no `authors`.",
+                    ))
 
         for link in page_links(p):
             if not link.target:

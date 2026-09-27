@@ -179,3 +179,43 @@ def test_text_output(run_cli, clean):
     clean.page("concept", "Beta", body="[[Alpha]] [[Nowhere]]", summary="second")
     r = run_cli("lint", "--vault", clean.root)
     assert "dead_link" in r.out and "1 error(s)" in r.out
+
+
+# --- track-authors ---------------------------------------------------------------
+
+
+@pytest.fixture
+def clean_with_author(clean):
+    raw = clean.raw("2026-01-02-Authored", "synthetic authored text", authors=["Владимир Синтетов"])
+    clean.page("source", "Authored", body="From raw. See [[Alpha]].", summary="authored source",
+               raw=clean.rel(raw), authors=["[[Владимир Синтетов]]"])
+    clean.page("entity", "Владимир Синтетов", body="Wrote [[Authored]].", summary="person", tags=["person"])
+    clean.page("concept", "Beta", body="Back to [[Alpha]], [[Authored]] by [[Владимир Синтетов]].", summary="second")
+    _reindex(clean)
+    return clean
+
+
+def test_authored_fixture_clean(clean_with_author):
+    assert lint.check(Vault(clean_with_author.root)) == []
+
+
+def test_missing_authors(clean_with_author):
+    raw = "raw/2026-01-02-Authored.md"
+    clean_with_author.page("source", "Authored", body="From raw. See [[Alpha]].", summary="authored source", raw=raw)
+    findings = lint.check(Vault(clean_with_author.root))
+    assert [(f.code, f.severity, f.path) for f in findings] == [
+        ("missing_authors", "warning", "wiki/sources/Authored.md")]
+    assert "Владимир Синтетов" in findings[0].message
+
+
+def test_empty_authors_list_also_missing(clean_with_author):
+    clean_with_author.page("source", "Authored", body="From raw. See [[Alpha]].", summary="authored source",
+                           raw="raw/2026-01-02-Authored.md", authors=[])
+    assert codes(clean_with_author) == ["missing_authors"]
+
+
+def test_authors_must_be_list(clean_with_author):
+    clean_with_author.page("source", "Authored", body="From raw. See [[Alpha]].", summary="authored source",
+                           raw="raw/2026-01-02-Authored.md", authors="Владимир Синтетов")
+    # A string is both the wrong type and not a non-empty list of authors.
+    assert codes(clean_with_author) == ["frontmatter_invalid", "missing_authors"]

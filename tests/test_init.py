@@ -209,3 +209,17 @@ def test_migrated_claude_md_no_warning(run_cli, tmp_path):
 def test_text_output_mentions_both_agents(run_cli, tmp_path):
     r = run_cli("init", tmp_path / "v", "--no-git")
     assert "/ingest" in r.out and "/skill:wiki-ingest" in r.out
+
+
+def test_schema_and_workflows_cover_authors(run_cli, tmp_path):
+    v = tmp_path / "v"
+    run_cli("init", v, "--no-git")
+    agents = (v / "AGENTS.md").read_text()
+    for needle in ("authors:", "## Authors", "tags: [person]", "aliases:", "According to", "--author"):
+        assert needle in agents, needle
+    for wf in (".claude/commands/ingest.md", ".agents/skills/wiki-ingest/SKILL.md"):
+        text = (v / wf).read_text()
+        assert "**Authors:**" in text and "tags: [person]" in text
+    for wf in (".claude/commands/lint.md", ".agents/skills/wiki-lint/SKILL.md"):
+        assert "wiki source-meta --all --json" in (v / wf).read_text()
+    assert run_cli("lint", "--strict", "--vault", v).code == 0

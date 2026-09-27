@@ -49,6 +49,8 @@ tags: []
 created: 2026-01-01
 updated: 2026-01-01      # bump whenever you change the page
 raw: raw/2026-01-01-Some Source.md   # source pages only
+authors:                 # source pages: who wrote it, when known (in order)
+  - "[[Владимир Колдин]]"
 ---
 ```
 
@@ -74,6 +76,28 @@ is no `title:` field.
   weakest. Use `--exact` for names and identifiers.
 - Every page should be linked from at least one other page (`wiki lint`
   reports orphans).
+
+## Authors
+
+Who wrote a source matters as much as what it says.
+
+- `wiki add-source` records the authors it finds in the raw file's frontmatter
+  (`authors: [...]`). When a raw file has them, the source page **must** list
+  them in the same order: `authors: ["[[Name]]", ...]`. If a raw file has none,
+  check the text for a byline and ask the human before leaving it empty.
+- Each author is a person entity page: `wiki new-page --type entity "<Name as
+  written by the source>" --json`, with `tags: [person]`. Keep an **Articles**
+  section there linking each source page they wrote (newest first), and a
+  one-line summary of who they are.
+- Record spelling variants (`В. Колдин`, transliterations) under `aliases:` on
+  the person page, and always link the canonical page name. Two different
+  people with the same name are disambiguated like any title:
+  `Name (journalist)`.
+- Attribute claims to their author in entity and concept pages ("According to
+  [[Name]] ([[Source Page]]), …"), especially opinions and forecasts.
+- `wiki search --author <name>` lists everything by a person (declined forms
+  work: `--author Колдина`). `wiki lint` warns with `missing_authors` when a
+  source page drops authors its raw file has.
 
 ## Writing rules
 

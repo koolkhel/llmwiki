@@ -22,6 +22,11 @@ Health-check the wiki, following `AGENTS.md`. Focus: $ARGUMENTS
    - missing cross-links between clearly related pages,
    - bloated pages that should be split, or near-duplicates that should be merged.
    Fix what is clear-cut. List anything that needs the human's judgement.
+   **Authors backfill:** run `wiki source-meta --all --json`. For each item, add
+   its `authors` to the source page (as `"[[Name]]"` links, in order) and link or
+   create the person pages as the ingest workflow describes. Items without a
+   source page are pending sources; mention them instead. Also look for
+   duplicate person pages (name variants) and merge them, keeping `aliases`.
 3. Re-run `wiki lint --json` until there are no errors, then run `wiki index --json`.
 4. **Log.** Run `wiki log lint "<one-line result>" --detail "<what changed / what needs a decision>" --json`.
 5. If anything changed, commit: `git add -A && git commit -m "lint: <summary>"`.

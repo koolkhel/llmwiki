@@ -138,6 +138,42 @@ def add_source_cmd(
     run(json_, body)
 
 
+@app.command("source-meta")
+def source_meta_cmd(
+    raw: Annotated[Optional[str], typer.Argument(help="A raw/ file to re-derive metadata for.")] = None,
+    all_: Annotated[
+        bool, typer.Option("--all", help="List raw files whose known authors are missing from their source page.")
+    ] = False,
+    json_: JsonOpt = False,
+    vault: VaultOpt = None,
+) -> None:
+    """Re-derive capture metadata (e.g. authors) from raw/.orig originals. Read-only."""
+
+    def body() -> Outcome:
+        if (raw is None) == (not all_):
+            raise WikiError("usage_error", "Give either a raw file or --all.")
+        v = find_vault(vault)
+        if all_:
+            res = sources.missing_authors_report(v)
+            lines = [
+                f"{i['raw']}: {', '.join(i['authors'])} ({i['from']}) -> {i['source_page'] or '(not ingested)'}"
+                for i in res["items"]
+            ]
+            lines.append(f"{len(res['items'])} of {res['checked']} raw file(s) need authors on their source page")
+            return Outcome(res, "\n".join(lines))
+        res = sources.source_meta(v, raw)
+        d = res["derived"] or {}
+        text = "\n".join([
+            f"path:        {res['path']}",
+            f"source page: {res['source_page'] or '(not ingested)'}",
+            f"derivable:   {res['derivable']}",
+            f"authors:     recorded {res['recorded'].get('authors') or '-'} | derived {d.get('authors') or '-'}",
+        ])
+        return Outcome(res, text)
+
+    run(json_, body)
+
+
 @app.command("new-page")
 def new_page_cmd(
     title: Annotated[str, typer.Argument(help="Page title; becomes the filename.")],
@@ -196,13 +232,16 @@ def log_cmd(
 
 @app.command("search")
 def search_cmd(
-    query: Annotated[list[str], typer.Argument(help="Search terms (all must match).")],
+    query: Annotated[Optional[list[str]], typer.Argument(help="Search terms (all must match).")] = None,
     type_: Annotated[Optional[PageType], typer.Option("--type", help="Only pages of this type.")] = None,
     limit: Annotated[int, typer.Option("--limit", help="Maximum results.")] = 20,
     raw: Annotated[bool, typer.Option("--raw", help="Search raw sources instead of wiki pages.")] = False,
     exact: Annotated[
         bool, typer.Option("--exact", help="Whole words only: no word-form (lemma/stem) or substring matching.")
     ] = False,
+    author: Annotated[
+        Optional[str], typer.Option("--author", help="Only sources whose `authors` match this name (word forms ok).")
+    ] = None,
     json_: JsonOpt = False,
     vault: VaultOpt = None,
 ) -> None:
@@ -210,7 +249,7 @@ def search_cmd(
 
     def body() -> Outcome:
         res, warnings = search.search(
-            find_vault(vault), " ".join(query), type_.value if type_ else None, limit, raw, exact
+            find_vault(vault), " ".join(query or []), type_.value if type_ else None, limit, raw, exact, author
         )
         lines = [f"{r['link']}  ({r['type']}, {r['match']}, {r['path']})\n    {r['snippet']}" for r in res["results"]]
         shown = f"{len(res['results'])} of {res['total']}" if res["total"] > len(res["results"]) else str(res["total"])

@@ -27,6 +27,12 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
 4. **Source page.** Run `wiki new-page --type source "<source title>" --raw <path> --json`
    and write it: one-line `summary`, key points, notable data or short quotes,
    and a "Touches" section linking every page you create or update below.
+   **Authors:** copy the raw file's `authors` into the source page as
+   `authors: ["[[Name]]", ...]`, in order. For each author, find the person page
+   (`wiki search --author "<Name>" --json`, `wiki search "<Name>" --type entity --json`)
+   or create it (`wiki new-page --type entity "<Name>" --json`, `tags: [person]`),
+   and add this source to its **Articles** section. If the raw file has no
+   `authors`, look for a byline in the text and ask the human rather than guess.
 5. **Update the wiki.** Typically 5–15 pages:
    - Update existing entity/concept pages with the new information. Add the
      source page to their `sources:`, bump `updated`, and cross-link.

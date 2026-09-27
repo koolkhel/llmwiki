@@ -11,7 +11,7 @@ from pathlib import Path
 from . import fetch as fetch_mod
 from .errors import WikiError
 from .naming import EXT, MAX_FILENAME_BYTES, nfc, sanitize
-from .pages import Page, dump, iter_md, iter_pages, parse
+from .pages import Page, dump, iter_md, iter_pages, parse, resolve_raw_arg
 from .vault import Vault
 
 _URL = re.compile(r"^https?://", re.I)
@@ -143,6 +143,7 @@ def capture_url(vault: Vault, url: str, now: dt.datetime | None = None) -> dict:
     meta: dict = {
         "kind": "url",
         "title": page.title,
+        "authors": page.authors or None,
         "original_url": page.original_url,
         "canonical_url": page.canonical_url,
         "normalized_url": page.normalized_url,
@@ -190,6 +191,17 @@ def _source_file(vault: Vault, arg: str) -> Path:
     return p
 
 
+def _frontmatter_authors(meta: dict | None) -> list[str]:
+    """`author`/`authors` from a clipped markdown file's own frontmatter (string or list; [[links]] unwrapped)."""
+    if not meta:
+        return []
+    for key in ("authors", "author"):
+        v = meta.get(key)
+        if v:
+            return fetch_mod.clean_authors(v if isinstance(v, list) else [v])
+    return []
+
+
 def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict:
     p = _source_file(vault, arg)
     data = p.read_bytes()
@@ -217,10 +229,12 @@ def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict
     meta: dict = {
         "kind": "file",
         "title": title,
+        "authors": _frontmatter_authors(original_meta) or None,
         "original_path": str(p),
         "captured_at": _stamp(now),
         "sha256": sha,
     }
+    meta = {k: v for k, v in meta.items() if v is not None}
     if original_meta:
         meta["original_frontmatter"] = original_meta
     path = raw_path_for(vault, now.astimezone().date(), title, sha)
@@ -250,6 +264,7 @@ def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.d
         meta: dict = {
             "kind": "url",
             "title": page.title,
+            "authors": page.authors or None,
             "original_url": page.original_url,
             "canonical_url": page.canonical_url,
             "normalized_url": page.normalized_url,
@@ -266,6 +281,7 @@ def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.d
         meta = {
             "kind": "file",
             "title": page.title,
+            "authors": page.authors or None,
             "captured_at": _stamp(now),
             "captured_via": "saved-file",
             "language": page.language,
@@ -307,3 +323,75 @@ def capture(vault: Vault, arg: str, now: dt.datetime | None = None, url: str | N
     if url is not None:
         raise WikiError("invalid_option", "--url is only valid for saved .html/.htm files.")
     return capture_file(vault, arg, now)
+
+
+# --- re-derived metadata (read-only) ---------------------------------------------------
+
+_META_FIELDS = ("title", "authors", "published", "language", "canonical_url")
+
+
+def derive_meta(vault: Vault, raw: RawSource) -> tuple[dict | None, str | None]:
+    """Re-extract metadata from the raw file's stored original. Returns (derived, error_code)."""
+    m = raw.meta or {}
+    orig_rel = m.get("original_file")
+    orig = vault.root / orig_rel if isinstance(orig_rel, str) and orig_rel else None
+    if orig is None or not orig.is_file():
+        return None, "no_original"
+    hint = m.get("original_url") if isinstance(m.get("original_url"), str) else None
+    try:
+        page = fetch_mod.extract_saved(orig.read_bytes(), url_hint=hint or None).page
+    except WikiError as e:
+        return None, e.code
+    return {
+        "title": page.title,
+        "authors": page.authors,
+        "published": page.published,
+        "language": page.language,
+        "canonical_url": page.canonical_url,
+    }, None
+
+
+def _page_authors(page: Page | None) -> list:
+    a = (page.meta or {}).get("authors") if page else None
+    return a if isinstance(a, list) else []
+
+
+def source_meta(vault: Vault, raw_arg: str) -> dict:
+    rel = resolve_raw_arg(vault, raw_arg)
+    raw = next(r for r in iter_raw(vault) if r.rel == rel)
+    pages = iter_pages(vault)
+    by_rel = {p.rel: p for p in pages}
+    source_pages = ingested_by(pages).get(rel, [])
+    derived, error = derive_meta(vault, raw)
+    recorded = {k: (raw.meta or {}).get(k) for k in _META_FIELDS}
+    return {
+        "path": rel,
+        "source_page": source_pages[0] if source_pages else None,
+        "source_page_authors": _page_authors(by_rel.get(source_pages[0])) if source_pages else [],
+        "derivable": derived is not None,
+        "error": error if error not in (None, "no_original") else None,
+        "recorded": recorded,
+        "derived": derived,
+    }
+
+
+def missing_authors_report(vault: Vault) -> dict:
+    """Raw files with known authors (recorded, else re-derived) whose source page lacks `authors`."""
+    pages = iter_pages(vault)
+    by_rel = {p.rel: p for p in pages}
+    ingested = ingested_by(pages)
+    items = []
+    raws = iter_raw(vault)
+    for raw in raws:
+        src = (ingested.get(raw.rel) or [None])[0]
+        if src and _page_authors(by_rel.get(src)):
+            continue
+        recorded = (raw.meta or {}).get("authors")
+        if isinstance(recorded, list) and recorded:
+            authors, origin = recorded, "recorded"
+        else:
+            derived, _ = derive_meta(vault, raw)
+            authors, origin = (derived or {}).get("authors") or [], "derived"
+        if authors:
+            items.append({"raw": raw.rel, "source_page": src, "authors": authors, "from": origin})
+    return {"checked": len(raws), "items": items}

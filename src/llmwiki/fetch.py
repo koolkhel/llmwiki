@@ -8,10 +8,11 @@ trafilatura finds nothing. `http_get` is the single network seam.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlsplit
 
 from . import __version__
@@ -45,6 +46,7 @@ class FetchedPage:
     published: str | None
     language: str | None
     extractor: str
+    authors: list[str] = field(default_factory=list)
 
 
 def http_get(url: str, timeout: float = TIMEOUT_SECONDS) -> HttpResponse:
@@ -145,10 +147,110 @@ def _html_bits(html: str, base_url: str | None = None) -> HtmlBits:
     return HtmlBits(title or None, resolve(canonical), resolve(og_url), _http_url(saved_from))
 
 
+# --- authors ----------------------------------------------------------------------
+
+_ARTICLE_TYPES = {
+    "article", "newsarticle", "blogposting", "report", "scholarlyarticle",
+    "reportagenewsarticle", "opinionnewsarticle", "analysisnewsarticle",
+}
+_MAX_AUTHOR_CHARS = 200
+
+
+def _jsonld_objects(html: str) -> list[dict]:
+    """All JSON-LD objects on the page (lists and top-level @graph flattened); invalid blocks skipped."""
+    from bs4 import BeautifulSoup
+
+    out: list[dict] = []
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all("script", attrs={"type": re.compile(r"application/ld\+json", re.I)}):
+        try:
+            data = json.loads(tag.string or tag.get_text() or "")
+        except (ValueError, TypeError):
+            continue
+        stack = data if isinstance(data, list) else [data]
+        for item in stack:
+            if not isinstance(item, dict):
+                continue
+            graph = item.get("@graph")
+            if isinstance(graph, list):
+                out.extend(g for g in graph if isinstance(g, dict))
+            out.append(item)
+    return out
+
+
+def _types(obj: dict) -> set[str]:
+    t = obj.get("@type")
+    values = t if isinstance(t, list) else [t]
+    return {v.lower() for v in values if isinstance(v, str)}
+
+
+def _same_page(a: str | None, b: str | None) -> bool:
+    if not a or not b:
+        return False
+    pa, pb = urlsplit(a), urlsplit(b)
+    return (pa.netloc.lower().removeprefix("www."), pa.path.rstrip("/")) == (
+        pb.netloc.lower().removeprefix("www."), pb.path.rstrip("/"))
+
+
+def _jsonld_authors(html: str, url: str | None) -> list[str]:
+    """Authors of the page's main article object in JSON-LD, in order."""
+    articles = [o for o in _jsonld_objects(html) if _types(o) & _ARTICLE_TYPES]
+    if not articles:
+        return []
+
+    def ids(o: dict) -> list[str]:
+        main = o.get("mainEntityOfPage")
+        main_id = main.get("@id") if isinstance(main, dict) else main
+        return [v for v in (o.get("url"), o.get("@id"), main_id) if isinstance(v, str)]
+
+    main = next((o for o in articles if any(_same_page(i, url) for i in ids(o))), articles[0])
+    raw = main.get("author")
+    names: list[str] = []
+    for a in raw if isinstance(raw, list) else [raw]:
+        if isinstance(a, str):
+            names.append(a)
+        elif isinstance(a, dict) and isinstance(a.get("name"), str):
+            names.append(a["name"])
+    return names
+
+
+def clean_authors(names: list[str]) -> list[str]:
+    """Whitespace-normalise, drop empty/overlong values and `[[...]]` brackets, de-duplicate keeping order."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for n in names:
+        if not isinstance(n, str):
+            continue
+        n = n.strip()
+        m = re.fullmatch(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]", n)
+        if m:
+            n = m.group(1)
+        n = " ".join(n.split())
+        if not n or len(n) > _MAX_AUTHOR_CHARS or n.casefold() in seen:
+            continue
+        seen.add(n.casefold())
+        out.append(n)
+    return out
+
+
+def _authors(html: str, url: str | None, meta: dict, trafilatura_author: str | None) -> list[str]:
+    """First non-empty of: JSON-LD, trafilatura metadata (split on ';'), mcmetadata other.authors."""
+    candidates = [
+        _jsonld_authors(html, url),
+        [a for a in (trafilatura_author or "").split(";")],
+        list((meta.get("other") or {}).get("authors") or []),
+    ]
+    for names in candidates:
+        cleaned = clean_authors(names)
+        if cleaned:
+            return cleaned
+    return []
+
+
 def extract(original_url: str, final_url: str, html: str, html_bytes: bytes) -> FetchedPage:
     mcmetadata, trafilatura = _extractors()
     try:
-        meta = mcmetadata.extract(url=final_url, html_text=html)
+        meta = mcmetadata.extract(url=final_url, html_text=html, include_other_metadata=True)
     except Exception:  # e.g. BadContentError for short pages; body may still be extractable
         meta = {}
     body = trafilatura.extract(
@@ -171,6 +273,12 @@ def extract(original_url: str, final_url: str, html: str, html_bytes: bytes) -> 
             normalized = None
     published = meta.get("publication_date")
     parts = urlsplit(final_url)
+    try:
+        doc = trafilatura.extract_metadata(html, default_url=final_url)
+        trafilatura_author = doc.author if doc else None
+    except Exception:
+        trafilatura_author = None
+    page_url = None if final_url.startswith("file:") else final_url
     return FetchedPage(
         original_url=original_url,
         final_url=final_url,
@@ -182,6 +290,7 @@ def extract(original_url: str, final_url: str, html: str, html_bytes: bytes) -> 
         published=published.isoformat() if hasattr(published, "isoformat") else (published or None),
         language=meta.get("language") or None,
         extractor=extractor,
+        authors=_authors(html, page_url, meta, trafilatura_author),
     )
 
 

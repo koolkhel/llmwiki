@@ -116,7 +116,7 @@ class Page:
             out.append(f"`type` must be one of {', '.join(PAGE_TYPES)}")
         if "summary" in m and not (m["summary"] is None or isinstance(m["summary"], str)):
             out.append("`summary` must be a string")
-        for f in ("sources", "tags"):
+        for f in ("sources", "tags", "authors"):
             if f in m and not isinstance(m[f], list):
                 out.append(f"`{f}` must be a list")
         for f in ("created", "updated"):
