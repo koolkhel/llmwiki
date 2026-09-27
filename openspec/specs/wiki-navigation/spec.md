@@ -43,6 +43,8 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 
 `--type` SHALL restrict results to one page type, `--limit` SHALL cap the count (default 20), and `--raw` SHALL search raw sources instead of wiki pages, with the same matching. `--exact` SHALL disable the lemma and substring tiers.
 
+`--author <name>` SHALL restrict results to pages (with `--raw`: raw files) whose frontmatter `authors` contains a name matching every word of `<name>`, using the exact and lemma tiers (only exact with `--exact`). Wikilink brackets and aliases in `authors` entries are ignored for matching. When `--author` is given, query terms are optional: without them, all pages by that author are returned, sorted by title.
+
 #### Scenario: Title outranks body
 - **WHEN** page A has the term in its title and page B only in its body
 - **THEN** A is listed before B
@@ -82,6 +84,22 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 #### Scenario: Exact mode
 - **WHEN** the query is `кошка --exact` and one page contains `кошка` while another contains only `кошек`
 - **THEN** only the first page is returned
+
+#### Scenario: Search by author
+- **WHEN** two source pages have `authors: ["[[Владимир Колдин]]"]` and a third has another author, and the user runs `wiki search --author "Владимир Колдин"`
+- **THEN** exactly the two pages by Владимир Колдин are returned
+
+#### Scenario: Declined author name
+- **WHEN** the user runs `wiki search --author Колдина`
+- **THEN** pages whose authors include `Владимир Колдин` are returned
+
+#### Scenario: Author combined with terms
+- **WHEN** the user runs `wiki search инвестиции --author Колдин`
+- **THEN** only pages by Колдин that also match `инвестиции` are returned
+
+#### Scenario: Raw files by author
+- **WHEN** the user runs `wiki search --author Колдин --raw`
+- **THEN** raw files whose frontmatter `authors` include Колдин are returned
 
 ### Requirement: Vault status
 `wiki status` SHALL report the vault path, page counts per type, total and pending raw source counts, the list of pending raw sources, whether `index.md` is stale, and the most recent log entry heading.
