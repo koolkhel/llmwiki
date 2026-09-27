@@ -102,11 +102,19 @@ Each result SHALL include `path`, `title`, `type`, `summary`, `link`, `match`, a
 - **THEN** raw files whose frontmatter `authors` include Колдин are returned
 
 ### Requirement: Vault status
-`wiki status` SHALL report the vault path, page counts per type, total and pending raw source counts, the list of pending raw sources, whether `index.md` is stale, and the most recent log entry heading.
+`wiki status` SHALL report the vault path, page counts per type, total and pending raw source counts, the list of pending raw sources, whether `index.md` is stale, and the most recent log entry heading. It SHALL also report template freshness: the counts of template-managed files that are outdated (a known older version), edited, missing, and obsolete, plus the paths with a pending `<path>.new` merge. The human-readable output SHALL suggest `wiki upgrade` when anything is outdated, missing or obsolete. Computing template freshness SHALL NOT write any file.
 
 #### Scenario: Status after capture
 - **WHEN** one URL has been captured but no source page references it
 - **THEN** `wiki status --json` reports one pending source with its path and title
+
+#### Scenario: Outdated templates reported
+- **WHEN** a vault still has an untouched older `AGENTS.md` and the old `.claude/commands/ingest.md`
+- **THEN** `wiki status --json` reports `AGENTS.md` as outdated and `ingest.md` as obsolete, and the text output suggests `wiki upgrade`
+
+#### Scenario: Fresh vault
+- **WHEN** `wiki status` runs on a vault just created by the current `wiki init`
+- **THEN** it reports no outdated, edited, missing or obsolete templates and no pending merges
 
 ### Requirement: Disposable search cache
 Search MAY store derived word-form data in `.llmwiki/cache/` inside the vault. The cache SHALL contain its own `.gitignore` that ignores everything in it, so it never appears as a change in git. Deleting the cache at any time SHALL NOT change search results. If the cache cannot be created or written, search SHALL still work, just more slowly. No command other than `wiki search` SHALL depend on the cache.

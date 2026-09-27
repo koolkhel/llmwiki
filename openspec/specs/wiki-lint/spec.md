@@ -21,6 +21,7 @@ Gives a deterministic, structural health check of the vault — the mechanical h
 - `index_stale` (warning): `index.md` differs from what `wiki index` would generate
 - `missing_authors` (warning): a source page whose raw file records `authors` but whose own `authors` is missing or empty
 - `pending_source` (info): a raw source that is not yet ingested
+- `template_merge_pending` (info): a `<path>.new` written by `wiki upgrade` next to a template-managed file, not yet merged and removed
 
 #### Scenario: Dead link
 - **WHEN** a page links `[[Nonexistent]]` and no such page exists
@@ -45,6 +46,10 @@ Gives a deterministic, structural health check of the vault — the mechanical h
 #### Scenario: authors of the wrong type
 - **WHEN** a page has `authors: Владимир Колдин` (a string, not a list)
 - **THEN** lint reports `frontmatter_invalid` for that page
+
+#### Scenario: Pending template merge
+- **WHEN** `wiki upgrade` left `AGENTS.md.new` in the vault
+- **THEN** lint reports `template_merge_pending` (info) for `AGENTS.md.new` and still exits 0
 
 ### Requirement: Lint exit status and filtering
 `wiki lint` SHALL exit 1 if any `error` finding exists, and 0 otherwise. `--strict` SHALL also make warnings produce exit 1. `--json` output SHALL include the findings list and counts per severity.
