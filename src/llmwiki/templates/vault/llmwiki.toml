@@ -1,0 +1,3 @@
+# Marks this directory as an llmwiki vault. Created by `wiki init`.
+layout_version = {{layout_version}}
+created = "{{date}}"

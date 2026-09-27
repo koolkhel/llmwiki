@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wiki:*)",
+      "Read(/**)",
+      "Edit(/wiki/**)"
+    ],
+    "deny": [
+      "Edit(/raw/**)",
+      "Edit(/index.md)",
+      "Edit(/log.md)"
+    ]
+  }
+}

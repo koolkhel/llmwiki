@@ -1,0 +1,11 @@
+# Obsidian per-device workspace state
+.obsidian/workspace*.json
+.obsidian/cache
+.trash/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Claude Code per-user settings
+.claude/settings.local.json

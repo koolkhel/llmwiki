@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llmwiki"
+version = "0.1.0"
+description = "Deterministic bookkeeping CLI for an LLM-maintained markdown wiki (the LLM Wiki pattern), driven by Claude Code."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6",
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "mediacloud-metadata>=1.4,<2",
+    # Used directly for markdown body extraction. 1.8.1 breaks list formatting
+    # ("item\n-" instead of "- item"); mediacloud-metadata pins 1.8.*.
+    "trafilatura==1.8.0",
+    # lxml>=5.2 moved lxml.html.clean out; justext (via trafilatura) still imports it.
+    "lxml_html_clean",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+wiki = "llmwiki.cli:entrypoint"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llmwiki"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::SyntaxWarning", "ignore::DeprecationWarning"]
