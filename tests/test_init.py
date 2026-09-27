@@ -7,10 +7,10 @@ import pytest
 from llmwiki import scaffold
 from llmwiki.pages import iter_md
 
-WORKFLOWS = ("ingest", "query", "lint")
+WORKFLOWS = ("ingest", "query", "lint", "upgrade")
 EXPECTED = [
     "llmwiki.toml", "AGENTS.md", "CLAUDE.md", "index.md", "log.md", ".gitignore", ".claude/settings.json",
-    *(f".claude/commands/{w}.md" for w in WORKFLOWS),
+    *(f".claude/commands/wiki-{w}.md" for w in WORKFLOWS),
     *(f".agents/skills/wiki-{w}/SKILL.md" for w in WORKFLOWS),
 ]
 EXPECTED_DIRS = ["raw", "raw/.orig", "wiki/sources", "wiki/entities", "wiki/concepts", "wiki/analyses"]
@@ -45,12 +45,12 @@ def test_reinit_preserves_edits(run_cli, tmp_path):
     target = tmp_path / "v"
     run_cli("init", target, "--no-git")
     (target / "AGENTS.md").write_text("# my evolved schema\n")
-    (target / ".claude" / "commands" / "query.md").unlink()
+    (target / ".claude" / "commands" / "wiki-query.md").unlink()
     log_before = (target / "log.md").read_text()
     doc = run_cli("init", target, "--json", "--no-git").json()
     assert (target / "AGENTS.md").read_text() == "# my evolved schema\n"
     assert "AGENTS.md" in doc["skipped"]
-    assert doc["created"] == [".claude/commands/query.md"]
+    assert doc["created"] == [".claude/commands/wiki-query.md"]
     assert ".agents/skills/wiki-query/SKILL.md" in doc["skipped"]
     assert "warnings" not in doc or not any("CLAUDE.md" in w for w in doc["warnings"])
     assert (target / "log.md").read_text() == log_before  # no second init entry
@@ -147,7 +147,7 @@ def test_claude_md_only_imports_agents_md(run_cli, tmp_path):
 def test_same_workflow_body_for_both_agents(run_cli, tmp_path, wf):
     v = tmp_path / "v"
     run_cli("init", v, "--no-git")
-    claude_fm, claude_body = _split((v / ".claude" / "commands" / f"{wf}.md").read_text())
+    claude_fm, claude_body = _split((v / ".claude" / "commands" / f"wiki-{wf}.md").read_text())
     kimi_fm, kimi_body = _split((v / ".agents" / "skills" / f"wiki-{wf}" / "SKILL.md").read_text())
     assert claude_body == kimi_body
     assert "$ARGUMENTS" in kimi_body
@@ -158,7 +158,7 @@ def test_same_workflow_body_for_both_agents(run_cli, tmp_path, wf):
 
 def test_argument_hint_passes_through_verbatim(run_cli, tmp_path):
     run_cli("init", tmp_path / "v", "--no-git")
-    fm, _ = _split((tmp_path / "v" / ".claude" / "commands" / "lint.md").read_text())
+    fm, _ = _split((tmp_path / "v" / ".claude" / "commands" / "wiki-lint.md").read_text())
     assert "argument-hint: [area or tag to focus on]" in fm  # not re-serialised as a YAML list
 
 
@@ -169,11 +169,13 @@ def test_no_bare_claude_only_workflow_references(run_cli, tmp_path):
     run_cli("init", v, "--no-git")
     texts = {"AGENTS.md": (v / "AGENTS.md").read_text()}
     for wf in WORKFLOWS:
-        texts[wf] = _split((v / ".claude" / "commands" / f"{wf}.md").read_text())[1]
+        texts[wf] = _split((v / ".claude" / "commands" / f"wiki-{wf}.md").read_text())[1]
     for name, text in texts.items():
         for line in text.splitlines():
-            for wf in re.findall(r"(?<![\w:-])/(ingest|query|lint)\b", line):
-                assert f"/skill:wiki-{wf}" in line, f"{name}: bare /{wf} in: {line}"
+            bare = re.findall(r"(?<![\w:-])/(ingest|query|lint|upgrade)\b", line)
+            assert not bare, f"{name}: unprefixed /{bare[0]} in: {line}"
+            for wf in re.findall(r"(?<![\w:])/wiki-(ingest|query|lint|upgrade)\b", line):
+                assert f"/skill:wiki-{wf}" in line, f"{name}: /wiki-{wf} without its Kimi form in: {line}"
 
 
 def test_no_kimi_permission_files_and_gitignore(run_cli, tmp_path):
@@ -208,7 +210,7 @@ def test_migrated_claude_md_no_warning(run_cli, tmp_path):
 
 def test_text_output_mentions_both_agents(run_cli, tmp_path):
     r = run_cli("init", tmp_path / "v", "--no-git")
-    assert "/ingest" in r.out and "/skill:wiki-ingest" in r.out
+    assert "/wiki-ingest" in r.out and "/skill:wiki-ingest" in r.out
 
 
 def test_schema_and_workflows_cover_authors(run_cli, tmp_path):
@@ -217,9 +219,9 @@ def test_schema_and_workflows_cover_authors(run_cli, tmp_path):
     agents = (v / "AGENTS.md").read_text()
     for needle in ("authors:", "## Authors", "tags: [person]", "aliases:", "According to", "--author"):
         assert needle in agents, needle
-    for wf in (".claude/commands/ingest.md", ".agents/skills/wiki-ingest/SKILL.md"):
+    for wf in (".claude/commands/wiki-ingest.md", ".agents/skills/wiki-ingest/SKILL.md"):
         text = (v / wf).read_text()
         assert "**Authors:**" in text and "tags: [person]" in text
-    for wf in (".claude/commands/lint.md", ".agents/skills/wiki-lint/SKILL.md"):
+    for wf in (".claude/commands/wiki-lint.md", ".agents/skills/wiki-lint/SKILL.md"):
         assert "wiki source-meta --all --json" in (v / wf).read_text()
     assert run_cli("lint", "--strict", "--vault", v).code == 0

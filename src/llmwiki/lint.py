@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 
-from . import index
+from . import index, upgrade
 from .errors import EXIT_OK, EXIT_PROBLEMS, WikiError
 from .links import Resolver, page_links
 from .naming import is_canonical_stem, key, title_to_filename
@@ -111,6 +111,10 @@ def check(vault: Vault) -> list[Finding]:
             out.append(Finding("error", "raw_modified", r.rel, "Raw file body no longer matches its recorded sha256."))
         if r.rel not in ingested:
             out.append(Finding("info", "pending_source", r.rel, "Not yet ingested (no wiki/sources page has raw: here)."))
+
+    for pending in upgrade.freshness(vault)["pending_merge"]:
+        out.append(Finding("info", "template_merge_pending", pending,
+                           "Template update not merged yet; run the upgrade workflow (/wiki-upgrade).", pending))
 
     if index.render(pages) != _read(vault.index_path):
         out.append(Finding("warning", "index_stale", vault.rel(vault.index_path), "Out of date; run `wiki index`."))

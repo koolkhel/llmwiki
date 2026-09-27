@@ -38,7 +38,7 @@ wiki --help
 
 ```bash
 wiki init ~/wikis/research          # scaffold a vault (git init, AGENTS.md schema, workflows)
-cd ~/wikis/research && claude       # Claude Code: /ingest https://example.org/some-article
+cd ~/wikis/research && claude       # Claude Code: /wiki-ingest https://example.org/some-article
 cd ~/wikis/research && kimi         # Kimi Code:   /skill:wiki-ingest https://example.org/some-article
 ```
 
@@ -52,9 +52,10 @@ Each workflow is written from one template for both agents:
 
 | Workflow | Claude Code | Kimi Code |
 |---|---|---|
-| ingest | `/ingest <url\|file>` | `/skill:wiki-ingest <url\|file>` |
-| query | `/query <question>` | `/skill:wiki-query <question>` |
-| lint | `/lint` | `/skill:wiki-lint` |
+| ingest | `/wiki-ingest <url\|file>` | `/skill:wiki-ingest <url\|file>` |
+| query | `/wiki-query <question>` | `/skill:wiki-query <question>` |
+| lint | `/wiki-lint` | `/skill:wiki-lint` |
+| upgrade | `/wiki-upgrade` | `/skill:wiki-upgrade` |
 
 Files: `.claude/commands/*.md` for Claude Code, `.agents/skills/wiki-*/SKILL.md`
 for Kimi Code.
@@ -74,14 +75,30 @@ Kimi Code ignores project-level permission rules (`.kimi-code/local.toml`), so
 `wiki init` writes none. In every case, `wiki lint` reports `raw_modified` if a
 raw file changes after capture, and `git checkout -- raw/` restores it.
 
-### Migrating an older vault
+### Updating a vault after updating the tool
 
-Vaults created before `AGENTS.md` keep their full schema in `CLAUDE.md`. Run
-`wiki init <vault>`: it adds `AGENTS.md` and the Kimi skills, leaves your files
-untouched, and warns about `CLAUDE.md`. Then merge any customisations from
-`CLAUDE.md` into `AGENTS.md`, and replace `CLAUDE.md` with the single line
-`@AGENTS.md`. To get the updated workflow wording in `.claude/commands/`, delete
-those files and run `wiki init` again.
+`wiki init` never modifies existing files, so template improvements (schema
+rules, workflow wording, new workflows) reach an existing vault through
+`wiki upgrade`:
+
+```bash
+cd ~/work/PERSONAL/LLMWIKI && git pull && .venv/bin/pip install -e .   # update the tool
+cd ~/wikis/research
+wiki upgrade --dry-run      # see what would change
+wiki upgrade                # untouched files are updated; files you edited get a <file>.new
+```
+
+Then restart your agent and run the **upgrade** workflow (`/wiki-upgrade` in
+Claude Code, `/skill:wiki-upgrade` in Kimi Code). It merges each `<file>.new`
+into your edited file, keeping your customisations, shows you the diff, and
+commits. `wiki status` tells you when templates are outdated, and `wiki lint`
+flags unmerged `.new` files.
+
+`wiki upgrade` recognises every file version the tool has ever written, so it
+also migrates old vaults: the full-schema `CLAUDE.md` becomes the
+`@AGENTS.md` import, and the old `/ingest`, `/query` and `/lint` commands are
+replaced by the `wiki-` names. It never touches `raw/`, `wiki/`, `index.md`,
+`log.md` or `llmwiki.toml`.
 
 | Command | Purpose |
 |---|---|
@@ -93,7 +110,8 @@ those files and run `wiki init` again.
 | `wiki index` | Regenerate `index.md`. |
 | `wiki log <op> <message>` | Append to `log.md`. |
 | `wiki lint [--strict]` | Structural health check. |
-| `wiki status` | Vault summary, including sources pending ingestion. |
+| `wiki status` | Vault summary, including sources pending ingestion and outdated templates. |
+| `wiki upgrade [--dry-run]` | Update the vault's schema and workflow files; edited files get a `.new` to merge. |
 
 Every command accepts `--json`, which writes exactly one JSON document to
 stdout. Exit codes are 0 (ok), 1 (problems reported, e.g. lint errors) and
@@ -108,6 +126,10 @@ stdout. Exit codes are 0 (ok), 1 (problems reported, e.g. lint errors) and
 ```
 
 Tests use synthetic fixtures only and never touch the network.
+
+After changing anything under `src/llmwiki/templates/`, run
+`python scripts/known_hashes.py` so `wiki upgrade` can recognise the new
+version in vaults later; a test fails until you do.
 
 ### Spec-driven with OpenSpec
 

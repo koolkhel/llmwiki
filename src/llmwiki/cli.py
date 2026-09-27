@@ -17,7 +17,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from . import index, lint, log, pages, scaffold, search, sources, status
+from . import index, lint, log, pages, scaffold, search, sources, status, upgrade
 from .errors import EXIT_ERROR, WikiError
 from .vault import find_vault
 
@@ -99,6 +99,21 @@ def init_cmd(
     def body() -> Outcome:
         res, warnings = scaffold.init_vault(directory, git=not no_git)
         return Outcome(res, scaffold.render_text(res), warnings=warnings)
+
+    run(json_, body)
+
+
+@app.command("upgrade")
+def upgrade_cmd(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would change; write nothing.")] = False,
+    json_: JsonOpt = False,
+    vault: VaultOpt = None,
+) -> None:
+    """Update the vault's schema and workflow files; edited files get a <path>.new to merge."""
+
+    def body() -> Outcome:
+        report, warnings = upgrade.run(find_vault(vault), dry_run=dry_run)
+        return Outcome(report, upgrade.render_text(report), warnings=warnings)
 
     run(json_, body)
 

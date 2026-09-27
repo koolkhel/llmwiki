@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import index, log
+from . import index, log, upgrade
 from .pages import iter_pages
 from .sources import ingested_by, iter_raw
 from .vault import TYPE_DIRS, Vault
@@ -24,6 +24,7 @@ def vault_status(vault: Vault) -> dict:
         "pending": pending,
         "index_stale": index.render(pages) != _read(vault.index_path),
         "last_log": log.last_heading(vault),
+        "templates": upgrade.freshness(vault),
     }
 
 
@@ -44,4 +45,10 @@ def render_text(s: dict) -> str:
     lines += [f"  pending: {p['path']}" for p in s["pending"]]
     lines.append(f"index:   {'STALE (run `wiki index`)' if s['index_stale'] else 'up to date'}")
     lines.append(f"log:     {s['last_log'] or '(no entries)'}")
+    t = s["templates"]
+    parts = [f"{len(t[k])} {k}" for k in ("outdated", "edited", "missing", "obsolete") if t[k]]
+    if t["pending_merge"]:
+        parts.append(f"{len(t['pending_merge'])} pending merge ({', '.join(t['pending_merge'])})")
+    hint = " - run `wiki upgrade`" if any(t[k] for k in ("outdated", "missing", "obsolete")) else ""
+    lines.append(f"templates: {', '.join(parts) + hint if parts else 'up to date'}")
     return "\n".join(lines)

@@ -57,7 +57,7 @@ def render_workflow(name: str, text: str) -> dict[str, str]:
         claude.append(f"argument-hint: {fm['argument-hint']}")
     kimi = [f"name: wiki-{name}", f"description: {fm['description']}"]
     return {
-        f".claude/commands/{name}.md": "---\n" + "\n".join(claude) + "\n---\n" + body,
+        f".claude/commands/wiki-{name}.md": "---\n" + "\n".join(claude) + "\n---\n" + body,
         f".agents/skills/wiki-{name}/SKILL.md": "---\n" + "\n".join(kimi) + "\n---\n" + body,
     }
 
@@ -169,6 +169,6 @@ def render_text(res: dict) -> str:
     lines += [f"  created  {p}" for p in res["created"]]
     lines += [f"  skipped  {p} (exists)" for p in res["skipped"]]
     lines.append(f"git: {res['git']}")
-    lines.append(f"next: cd {res['vault']} && claude   # then /ingest <url or file>")
+    lines.append(f"next: cd {res['vault']} && claude   # then /wiki-ingest <url or file>")
     lines.append(f"  or: cd {res['vault']} && kimi     # then /skill:wiki-ingest <url or file>")
     return "\n".join(lines)

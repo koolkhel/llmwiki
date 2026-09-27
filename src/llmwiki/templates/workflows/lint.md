@@ -14,7 +14,7 @@ Health-check the wiki, following `AGENTS.md`. Focus: $ARGUMENTS
      to the human, who can restore them from git.
    - Warnings: link orphans from related pages, and fill empty summaries.
    - Mention `pending_source` items and offer to run the **ingest** workflow on
-     them (`/ingest` in Claude Code, `/skill:wiki-ingest` in Kimi Code).
+     them (`/wiki-ingest` in Claude Code, `/skill:wiki-ingest` in Kimi Code).
 2. **Semantic.** Read across the wiki (or the focus area) and look for:
    - contradictions between pages that are not yet flagged,
    - claims with no source, or stale claims superseded by newer sources,

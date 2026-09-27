@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "paths": {
+    ".agents/skills/wiki-ingest/SKILL.md": [
+      "1041d92e5bb4f28d41f7ee297035466465f4d4cd7369dff567b72fd45e9ac50e",
+      "993a3b82e68bac324b6318e1b9818adabfd2a16f639a31036d67a431ee13add7",
+      "de240ac005610ff39813fd511f71af3a9a55d4d605ec14837afb6b92869e5d50"
+    ],
+    ".agents/skills/wiki-lint/SKILL.md": [
+      "504b5841b73671c46c01f6f77a213900988511dfc61056d5443a336b2728450d",
+      "9d5697fce5a209270ba27e5dd49c181a225090b3a98ff1e0357693e47d6d5e2e",
+      "f260034575b53812e83bc224467f3511b40bf5490ab60f09ca78472ca938b1b2"
+    ],
+    ".agents/skills/wiki-query/SKILL.md": [
+      "bd41b46fdbb4a7112a0cd6d70cfeeb592601431a44f031fb2f175ca59ebe093d"
+    ],
+    ".agents/skills/wiki-upgrade/SKILL.md": [
+      "0541f62f2ff4754e79e9f98db6d6a45714d52003f2a942511db6fcae343a2e79"
+    ],
+    ".claude/commands/ingest.md": [
+      "11ef3d70fa0b40c3e6334aebd926dec47cc9be8d41efa797fd1d2edc4cd4181b",
+      "1b0f912fe6d8a48f341b9b817dee6a2fa744a3fc8a09ec084deb1a551175997b",
+      "d2e87531c04d60b062415cf2e89098015e0503a98a946736f744c9d24138224a",
+      "f2aba223029d2ba2f65a77a883ed4b2aade50de8587e87d07fe784453b5c7e2d"
+    ],
+    ".claude/commands/lint.md": [
+      "3813fec5d14d62f3bad6976a69405b07609f0a29a4828c222c788c904ad9013d",
+      "4aef99d470406dde4785e9892aab36132e2bf3086e16b044e4dcf6b21cad8fb6",
+      "f2ae25fdf56f5fefb77bdf568f67a17c0f2cf5981762c456576b0954cb7e7705"
+    ],
+    ".claude/commands/query.md": [
+      "09ab5e6ff63f6ce453f435877218fea963db93bf37ea70e4b6c843a825088e0c",
+      "188ddbaf2fffbb22592124c687c2c7f000e51c06713a867472d62fba21708074",
+      "19390c3d6707e1f83d5fcdd151ddd1790c1cab3a72f313371d248796a431dd64"
+    ],
+    ".claude/commands/wiki-ingest.md": [
+      "d2e87531c04d60b062415cf2e89098015e0503a98a946736f744c9d24138224a"
+    ],
+    ".claude/commands/wiki-lint.md": [
+      "7c2624018b6cafe00cb7cf00eba2fb21fea6f3954e5c1ac03bb73eb0783bf047"
+    ],
+    ".claude/commands/wiki-query.md": [
+      "09ab5e6ff63f6ce453f435877218fea963db93bf37ea70e4b6c843a825088e0c"
+    ],
+    ".claude/commands/wiki-upgrade.md": [
+      "0abd6daa369f9fe6907a9380ce3053b247e59b5f516b463abaf7a2fd04ee8594"
+    ],
+    ".claude/settings.json": [
+      "c3ae6d9a55290943dd3fec77b6ed92ca6741906b58c336b38d1b3a34588db255"
+    ],
+    ".gitignore": [
+      "8db3eaa32759b7b133275e373aba291e76095ccff3e5633ccf67053f6c0543b3",
+      "a22c3cb4536f56edde89c36b144fc3721e1e80bdc849f0d3bd4e6948a49140a5"
+    ],
+    "AGENTS.md": [
+      "4577167859eebfd100a948710bb60541d8831385144416e3faea5850da9bff20",
+      "89a2c47517c25bffe624c329574bde736f9c01f782d6c186cae722e31279353d",
+      "a39cf4b6fa90cf9d16e555eb60e507bee72bcabf7303f13478eb5a31b5173fac",
+      "e7ff6920419931366d75dc6c713d858850843c7a1ba9c58427e6c2f511677587"
+    ],
+    "CLAUDE.md": [
+      "2a967199edadbe007c4544ac4b6381b178824360299d44f0aff33fd3cffd2a7e",
+      "3b6ee7096a93c8e47628720242cdfbb904ca0cf4a5293a20acaf06e0bcc66cac",
+      "617ed9612977bcf4652784be5c019657470c175ecef7ee5958eae666a199ae5b"
+    ]
+  }
+}

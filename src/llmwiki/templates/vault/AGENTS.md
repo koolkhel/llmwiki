@@ -115,12 +115,13 @@ Each workflow can be started from either agent:
 
 | Workflow | Claude Code | Kimi Code | Purpose |
 |---|---|---|---|
-| **ingest** | `/ingest <url\|file>` | `/skill:wiki-ingest <url\|file>` | Capture a source and fold it into the wiki. |
-| **query** | `/query <question>` | `/skill:wiki-query <question>` | Answer from the wiki, with citations, and optionally file the answer as an analysis. |
-| **lint** | `/lint` | `/skill:wiki-lint` | Structural check (CLI) plus semantic review (you). |
+| **ingest** | `/wiki-ingest <url\|file>` | `/skill:wiki-ingest <url\|file>` | Capture a source and fold it into the wiki. |
+| **query** | `/wiki-query <question>` | `/skill:wiki-query <question>` | Answer from the wiki, with citations, and optionally file the answer as an analysis. |
+| **lint** | `/wiki-lint` | `/skill:wiki-lint` | Structural check (CLI) plus semantic review (you). |
+| **upgrade** | `/wiki-upgrade` | `/skill:wiki-upgrade` | Update this vault's schema and workflows after the `wiki` tool is updated, merging the human's edits. |
 
 When suggesting a workflow to the human, give both forms, e.g. "the **ingest**
-workflow (`/ingest` in Claude Code, `/skill:wiki-ingest` in Kimi Code)".
+workflow (`/wiki-ingest` in Claude Code, `/skill:wiki-ingest` in Kimi Code)".
 
 Other useful commands: `wiki status --json` (pending sources, counts),
 `wiki search <terms> --raw --json` (search raw sources).
