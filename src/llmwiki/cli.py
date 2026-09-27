@@ -112,19 +112,28 @@ class PageType(str, Enum):
 
 @app.command("add-source")
 def add_source_cmd(
-    source: Annotated[str, typer.Argument(help="An http(s) URL, or a path to a UTF-8 .txt/.md file.")],
+    source: Annotated[
+        str, typer.Argument(help="An http(s) URL, a UTF-8 .txt/.md file, or a browser-saved .html/.htm page.")
+    ],
+    url: Annotated[
+        Optional[str],
+        typer.Option("--url", help="Original URL of a saved .html page (default: detected from the page)."),
+    ] = None,
     json_: JsonOpt = False,
     vault: VaultOpt = None,
 ) -> None:
-    """Capture a URL or text file into raw/ (immutable, with provenance frontmatter)."""
+    """Capture a URL, text file or saved web page into raw/ (immutable, with provenance frontmatter)."""
 
     def body() -> Outcome:
-        res = sources.capture(find_vault(vault), source)
+        res = sources.capture(find_vault(vault), source, url=url)
+        warnings = res.pop("warnings", [])
         if res["duplicate_of"]:
             text = f"already captured: {res['duplicate_of']} ({res['status']})"
         else:
             text = f"captured {res['path']} ({res['status']})"
-        return Outcome(res, text)
+        if "url_source" in res and not res["duplicate_of"]:
+            text += f", saved page, URL from {res['url_source']}" if res["url_source"] else ", saved page, no URL"
+        return Outcome(res, text, warnings=warnings)
 
     run(json_, body)
 

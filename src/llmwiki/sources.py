@@ -17,6 +17,7 @@ from .vault import Vault
 _URL = re.compile(r"^https?://", re.I)
 _HEADING = re.compile(r"^#[ \t]+(.+?)[ \t#]*$", re.M)
 FILE_SUFFIXES = (".txt", ".md")
+HTML_SUFFIXES = (".html", ".htm")
 HASH_SUFFIX_LEN = 8
 _DATE_PREFIX_LEN = len("YYYY-MM-DD-")
 _RAW_TITLE_BYTES = MAX_FILENAME_BYTES - len(EXT) - _DATE_PREFIX_LEN - (1 + HASH_SUFFIX_LEN)
@@ -168,15 +169,17 @@ def _file_title(meta: dict | None, body: str, fallback: str) -> str:
     return m.group(1).strip() if m else fallback
 
 
-def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict:
+def _source_file(vault: Vault, arg: str) -> Path:
+    """Resolve and validate a local source path (existence, type, suffix, not already in raw/)."""
     p = Path(arg).expanduser()
     if not p.exists():
         raise WikiError("file_not_found", f"{arg}: no such file.", path=arg)
     if not p.is_file():
         raise WikiError("not_a_file", f"{arg}: not a regular file.", path=arg)
     p = p.resolve()
-    if p.suffix.lower() not in FILE_SUFFIXES:
-        raise WikiError("unsupported_file", f"{arg}: only {', '.join(FILE_SUFFIXES)} files are supported.", path=arg)
+    if p.suffix.lower() not in FILE_SUFFIXES + HTML_SUFFIXES:
+        supported = ", ".join(FILE_SUFFIXES + HTML_SUFFIXES)
+        raise WikiError("unsupported_file", f"{arg}: only {supported} files are supported.", path=arg)
     if p.is_relative_to(vault.raw_dir.resolve()):
         raise WikiError(
             "already_in_raw",
@@ -184,6 +187,11 @@ def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict
             "record its provenance.",
             path=arg,
         )
+    return p
+
+
+def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict:
+    p = _source_file(vault, arg)
     data = p.read_bytes()
     if b"\x00" in data:
         raise WikiError("binary_file", f"{arg}: looks like a binary file.", path=arg)
@@ -220,9 +228,82 @@ def capture_file(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict
     return _result(vault, None, path, meta, duplicate=False)
 
 
+def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.datetime | None = None) -> dict:
+    """Capture a browser-saved HTML page. Offline; companion `<name>_files/` folders are ignored."""
+    p = _source_file(vault, arg)
+    data = p.read_bytes()
+    saved = fetch_mod.extract_saved(data, url_hint=url)
+    page = saved.page
+    body = normalize_text(page.body)
+    sha = content_hash(body)
+    dup = find_duplicate(iter_raw(vault), sha, page.normalized_url)
+    if dup:
+        res = _result(vault, dup, None, {}, duplicate=True)
+        res["url_source"] = saved.url_source
+        return res
+
+    now = _now(now)
+    path = raw_path_for(vault, now.astimezone().date(), page.title, sha)
+    orig = vault.orig_dir / f"{path.name[: -len(EXT)]}.html"
+    orig_rel = nfc(orig.relative_to(vault.root).as_posix())
+    if saved.url:
+        meta: dict = {
+            "kind": "url",
+            "title": page.title,
+            "original_url": page.original_url,
+            "canonical_url": page.canonical_url,
+            "normalized_url": page.normalized_url,
+            "captured_at": _stamp(now),
+            "captured_via": "saved-file",
+            "published": page.published,
+            "language": page.language,
+            "extractor": page.extractor,
+            "sha256": sha,
+            "original_path": str(p),
+            "original_file": orig_rel,
+        }
+    else:
+        meta = {
+            "kind": "file",
+            "title": page.title,
+            "captured_at": _stamp(now),
+            "captured_via": "saved-file",
+            "language": page.language,
+            "extractor": page.extractor,
+            "sha256": sha,
+            "original_path": str(p),
+            "original_file": orig_rel,
+        }
+    meta = {k: v for k, v in meta.items() if v is not None}
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    with orig.open("xb") as f:
+        f.write(data)
+    _write_new(path, dump(meta, body + "\n"))
+    res = _result(vault, None, path, meta, duplicate=False)
+    res["url_source"] = saved.url_source
+    if saved.url is None:
+        res["warnings"] = [
+            f"No original URL found in {p.name} (no canonical, og:url or saved-from signal); captured as a "
+            "file. Re-add with --url <url> after deleting the raw file if you know the address."
+        ]
+    return res
+
+
 def is_url(arg: str) -> bool:
     return bool(_URL.match(arg))
 
 
-def capture(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict:
-    return capture_url(vault, arg, now) if is_url(arg) else capture_file(vault, arg, now)
+def is_html_file(arg: str) -> bool:
+    return Path(arg).suffix.lower() in HTML_SUFFIXES
+
+
+def capture(vault: Vault, arg: str, now: dt.datetime | None = None, url: str | None = None) -> dict:
+    if is_url(arg):
+        if url is not None:
+            raise WikiError("invalid_option", "--url is only valid for saved .html/.htm files, not for URLs.")
+        return capture_url(vault, arg, now)
+    if is_html_file(arg):
+        return capture_saved_html(vault, arg, url=url, now=now)
+    if url is not None:
+        raise WikiError("invalid_option", "--url is only valid for saved .html/.htm files.")
+    return capture_file(vault, arg, now)

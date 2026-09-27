@@ -1,6 +1,6 @@
 ---
-description: Capture a URL or text file and fold it into the wiki
-argument-hint: <url | path to .txt/.md> [focus or notes]
+description: Capture a URL, text file or saved web page and fold it into the wiki
+argument-hint: <url | path to .txt/.md/.html> [focus or notes]
 ---
 
 Ingest this source into the wiki, following `AGENTS.md`: $ARGUMENTS
@@ -10,7 +10,14 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
 
 1. **Capture.** Run `wiki add-source "<url or path>" --json`.
    - Exit 2: stop and report `error.message`. Do not fall back to a web-fetch
-     tool or pasting.
+     tool or pasting. If a URL failed with `http_error` (e.g. 401/403) or
+     `extraction_failed`, the site probably blocks automated fetching: ask the
+     human to save the page from their browser (as "Webpage, Complete" or HTML)
+     and give you the `.html` path, then capture that file instead.
+   - For a saved `.html` page, check `url_source`. If it is null, or the
+     recorded URL looks wrong (e.g. a homepage), ask the human for the real URL
+     and re-run with `--url <url>` after they delete the wrongly captured raw
+     file.
    - If `duplicate_of` is set and `status` is `ingested`, tell the human it is
      already in the wiki and stop, unless they asked for a re-read.
    - Otherwise continue with the returned `path`.

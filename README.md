@@ -86,7 +86,7 @@ those files and run `wiki init` again.
 | Command | Purpose |
 |---|---|
 | `wiki init <dir>` | Scaffold a vault. Never overwrites existing files. |
-| `wiki add-source <url\|file>` | Capture a URL or `.txt`/`.md` file into immutable `raw/`. |
+| `wiki add-source <url\|file>` | Capture a URL, a `.txt`/`.md` file, or a browser-saved `.html` page (`--url` to set its address) into immutable `raw/`. |
 | `wiki new-page --type T "Title"` | Create a page whose filename is its title. |
 | `wiki search <terms>` | Find pages (or raw sources with `--raw`). Matches Russian and English word forms; `--exact` for literal words. |
 | `wiki index` | Regenerate `index.md`. |
