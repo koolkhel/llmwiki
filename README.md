@@ -93,16 +93,6 @@ TABLE published, authors FROM "wiki/sources" SORT published ASC
 ```
 ````
 
-### Verifying authors and dates yourself
-
-Source pages get `authors` and `published` only from the raw file (copied at
-ingest) or from you. The agent never guesses them from the text, never looks
-them up, and never changes values that are set. When they are missing,
-`wiki lint` warns (`missing_authors`, `missing_published`), and
-`wiki source-meta --all` lists each source with suggested values re-derived
-from the stored page, as a checklist to verify and fill in when you have time.
-The lint workflow only reports these; it doesn't edit them.
-
 ### How `raw/` is protected
 
 `raw/` holds the faithful copies of your sources and must never be edited.

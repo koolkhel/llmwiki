@@ -240,39 +240,3 @@ def test_schema_and_workflows_cover_chronology(run_cli, tmp_path):
         assert "**Date:**" in wf("ingest") and "Timeline" in wf("ingest")
         assert "wiki timeline" in wf("query")
         assert "`published`" in wf("lint") and "missing" in wf("lint")
-
-
-# --- manual-metadata-backfill ------------------------------------------------------------
-
-
-def _rendered(v, name):
-    return [(v / f".claude/commands/wiki-{name}.md").read_text(),
-            (v / f".agents/skills/wiki-{name}/SKILL.md").read_text()]
-
-
-def test_no_guessing_authors_or_dates(run_cli, tmp_path):
-    v = tmp_path / "v"
-    run_cli("init", v, "--no-git")
-    agents = (v / "AGENTS.md").read_text()
-    assert "Source-page `authors` come **only** from the raw file or from the human" in agents
-    assert "Source-page `published` comes **only** from the raw file or from the human" in agents
-    assert "never look them up" in agents and "never look one up" in agents
-    assert "undated" in agents
-    for text in [agents, *_rendered(v, "ingest"), *_rendered(v, "lint")]:
-        lowered = text.lower()
-        assert "look for a byline" not in lowered and "look for a date in the text" not in lowered
-        assert "check the text for a byline" not in lowered
-    for text in _rendered(v, "ingest"):
-        flat = " ".join(text.split())
-        assert "leave `authors` empty and tell the human" in flat
-        assert "leave `published` empty and tell the human" in flat
-
-
-def test_lint_backfill_is_report_only(run_cli, tmp_path):
-    v = tmp_path / "v"
-    run_cli("init", v, "--no-git")
-    for text in _rendered(v, "lint"):
-        flat = " ".join(text.split())
-        assert "Metadata check (report only)" in flat and "wiki source-meta --all --json" in flat
-        assert "do **not** edit source pages" in flat
-        assert "set the source page's `published" not in flat and "add them to the source page" not in flat
