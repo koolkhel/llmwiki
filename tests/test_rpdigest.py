@@ -406,3 +406,65 @@ def test_workflows_cover_digests(tmp_path, run_cli):
             assert needle in text, (ingest, needle)
     for query in (target / ".claude/commands/wiki-query.md", target / ".agents/skills/wiki-query/SKILL.md"):
         assert "--commentary" in query.read_text(encoding="utf-8")
+
+
+# --- Lists and unknown blocks (rp-digest-lists) ------------------------------------------------
+
+from rpfixture import (LIST_AFTER_COMMENT_BODY, LIST_AFTER_DATELINE_BODY, LIST_AFTER_QUOTE_BODY,  # noqa: E402
+                       LIST_BEFORE_DATELINE_BODY, UNKNOWN_P_BODY, UNKNOWN_TABLE_BODY)
+
+
+def test_list_continues_the_quote():
+    r = parse(digest_html(LIST_AFTER_QUOTE_BODY))
+    assert r["items"][0]["quote"] == [
+        "Заречье распродало выдуманные земли. Детали:",
+        "- первая выдуманная деталь;",
+        "- *вторая* выдуманная деталь;",
+        "- третья выдуманная деталь.",
+        "Итог выдуманной распродажи.",
+    ]
+    assert r["problems"] == []
+
+
+def test_list_continues_the_comment():
+    item = parse(digest_html(LIST_AFTER_COMMENT_BODY))["items"][0]
+    assert item["quote"] == ["Новость."]
+    assert item["comment"] == ["Редакция отмечает:", "- первое замечание;", "- второе замечание."]
+
+
+def test_list_right_after_dateline():
+    r = parse(digest_html(LIST_AFTER_DATELINE_BODY))
+    assert r["items"][0]["quote"] == ["- пункт сразу после даты", "Потом абзац."] and r["problems"] == []
+
+
+def test_list_before_any_dateline_unassigned():
+    r = parse(digest_html(LIST_BEFORE_DATELINE_BODY))
+    assert r["unassigned"] == [{"section": "Земля", "kind": "quote", "text": "- пункт до первой даты"}]
+    assert [p["code"] for p in r["problems"]] == ["unassigned_text"]
+
+
+def test_unknown_paragraph_reported():
+    r = parse(digest_html(UNKNOWN_P_BODY))
+    (p,) = r["problems"]
+    assert (p["code"], p["item"], p["tag"], p["text"]) == ("unknown_block", 1, "p", "Непонятный абзац")
+    assert r["items"][0]["quote"] == ["Первый абзац.", "Второй абзац."]
+
+
+def test_unknown_table_reported():
+    (p,) = parse(digest_html(UNKNOWN_TABLE_BODY))["problems"]
+    assert (p["code"], p["tag"], p["text"]) == ("unknown_block", "table", "выдуманная ячейка")
+
+
+def test_header_and_cover_ignored():
+    r = parse(digest_html())
+    assert r["problems"] == [] and r["unassigned"] == []
+    text = " ".join(t for i in r["items"] for t in i["quote"] + (i["comment"] or []))
+    for junk in ("Выдуманная война", "Выдуманный человек", "Изображение", "обострение"):
+        assert junk not in text
+
+
+def test_unknown_block_exits_1(tmp_vault, web, run_cli):
+    web.add(RP_URL, digest_html(UNKNOWN_P_BODY + "<p class=\"quote\">" + "Длинный синтетический абзац. " * 20 + "</p>"))
+    raw = sources.capture(Vault(tmp_vault.root), RP_URL)["path"]
+    r = run_cli("source-items-rp", raw, "--json", "--vault", tmp_vault.root)
+    assert r.code == 1 and r.json()["problems"][0]["code"] == "unknown_block"

@@ -132,36 +132,63 @@ def parse_html(html: bytes | str, issue_published: object) -> dict:
     problems: list[dict] = []
     section: str | None = None
     current: dict | None = None
-    for el in root.find_all(["h3", "p"]):
+    last_kind: str | None = None  # kind of the previous text block in the current item
+    started = False  # past the header zone (title, section titles, cover)
+
+    def add(kind: str, text: str) -> None:
+        if current is None:
+            unassigned.append({"section": section, "kind": kind, "text": text})
+            problems.append({"code": "unassigned_text",
+                             "message": f"A {kind} paragraph before any dateline in section {section!r}."})
+        elif kind == "quote":
+            current["quote"].append(text)
+        else:
+            current["comment"] = [*(current["comment"] or []), text]
+
+    for el in root.children:
+        if el.name is None:  # a bare string between blocks
+            text, cls = _space(str(el)), []
+        else:
+            text, cls = None, _classes(el)
+        is_dateline = el.name == "p" and "block_date" in cls
+        if not started:
+            if el.name != "h3" and not is_dateline:
+                continue
+            started = True
         if el.name == "h3":
             section = _space(el.get_text()) or None
-            current = None
-            continue
-        cls = _classes(el)
-        if "block_date" in cls:
+            current, last_kind = None, None
+        elif is_dateline:
             dateline = _space(el.get_text())
             parsed = parse_dateline(dateline, issue_day)
             current = {"n": len(items) + 1, "section": section, "dateline": dateline,
                        "place": None, "date": None, "outlet": None, "quote": [], "comment": None}
+            last_kind = "quote"
             if parsed:
                 current.update(parsed)
             else:
                 problems.append({"code": "bad_dateline", "item": current["n"],
                                  "message": f"Item {current['n']}: cannot read the date in {dateline!r}."})
             items.append(current)
-        elif "quote" in cls or "block_comment" in cls:
+        elif el.name == "p" and ("quote" in cls or "block_comment" in cls):
             kind = "quote" if "quote" in cls else "comment"
-            text = _text(el)
-            if not text:
-                continue
-            if current is None:
-                unassigned.append({"section": section, "kind": kind, "text": text})
-                problems.append({"code": "unassigned_text",
-                                 "message": f"A {kind} paragraph before any dateline in section {section!r}."})
-            elif kind == "quote":
-                current["quote"].append(text)
-            else:
-                current["comment"] = [*(current["comment"] or []), text]
+            if text := _text(el):
+                add(kind, text)
+                last_kind = kind
+        elif el.name == "ul":
+            for li in el.find_all("li"):
+                if text := _text(li):
+                    add(last_kind or "quote", f"- {text}")
+        elif el.name == "figure":
+            continue
+        else:
+            text = text if el.name is None else _space(el.get_text())
+            if text:
+                n = current["n"] if current else None
+                problems.append({"code": "unknown_block", "item": n, "section": section,
+                                 "tag": el.name or "#text", "text": text[:200],
+                                 "message": f"Unrecognised <{el.name or 'text'}> in "
+                                            f"{f'item {n}' if n else f'section {section!r}'}: {text[:80]!r}."})
     return {
         "issue": {
             "newspaper": m.group("name").strip() if m else None,

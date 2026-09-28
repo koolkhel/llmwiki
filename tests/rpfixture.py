@@ -17,6 +17,15 @@ WIDGET = """<div class="widget embed" style="padding: 0;background: #222">
 <h2><a href="/video/0000ffff">Выдуманный ролик про выдуманные дела</a></h2>
 </div>"""
 
+# What the real pages put before the first section, inside the same container as the items.
+HEADER = (
+    '<div class="pre_title">Выдуманная война: На фронтах; Милитарии всех стран</div>'
+    "<h1>{title}</h1>"
+    '<div class="back-article-0000abcd"></div>'
+    '<figure class="art_img classic cover"><footer><small>Изображение: (cc)</small></footer>'
+    '<img src="/x.jpg" alt="Выдуманный человек"><figcaption class="cover">Выдуманный человек</figcaption></figure>'
+)
+
 DEFAULT_BODY = (
     "<h3><strong>На фронтах</strong></h3>"
     "<p class=\"block_date\">ЗАРЕЧЬЕ, 18&nbsp;сентября&nbsp;— «Вестник»</p>"
@@ -48,8 +57,8 @@ def digest_html(body: str = DEFAULT_BODY, issue_date: str | None = "2026-09-26T0
         f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title} | ИА Красная Весна</title>"
         f"<link rel='canonical' href='{RP_URL}'>{ld}</head><body>"
         f"<nav>Новости | Газета | Поиск</nav>{issue}"
-        f"<article><div class=\"article_block gazeta\"><h1>{title}</h1>"
-        f"<div class=\"body\">{body}</div></div></article>{sidebar}"
+        f"<article><div class=\"article_block gazeta\"><div class=\"body\">{HEADER.format(title=title)}{body}"
+        f"<div class=\"comment_position\"></div></div></div></article>{sidebar}"
         f"<footer>Подвал сайта</footer></body></html>"
     )
 
@@ -86,3 +95,52 @@ def article_html(title: str = "Выдуманная статья") -> str:
             f"<script type=\"application/ld+json\">{{\"@type\": \"NewsArticle\", "
             f"\"datePublished\": \"2026-09-20T10:00:00+03:00\"}}</script></head>"
             f"<body><article><h1>{title}</h1>{paras}</article></body></html>")
+
+
+# Lists as on issue №681: class-less <ul> blocks with one bullet each.
+LIST_AFTER_QUOTE_BODY = (
+    "<h3>Земля</h3>"
+    "<p class=\"block_date\">ЗАРЕЧЬЕ, 1 сентября — «Вестник»</p>"
+    "<p class=\"quote\">Заречье распродало выдуманные земли. Детали:</p>"
+    "<ul><li>первая выдуманная деталь;</li></ul>"
+    "<ul><li><em>вторая</em> выдуманная деталь;</li></ul>"
+    "<ul><li>третья выдуманная деталь.</li></ul>"
+    "<p class=\"quote\">Итог выдуманной распродажи.</p>"
+)
+
+LIST_AFTER_COMMENT_BODY = (
+    "<h3>Земля</h3>"
+    "<p class=\"block_date\">ЗАРЕЧЬЕ, 1 сентября — «Вестник»</p>"
+    "<p class=\"quote\">Новость.</p>"
+    "<p class=\"block_comment\">Редакция отмечает:</p>"
+    "<ul><li>первое замечание;</li><li>второе замечание.</li></ul>"
+)
+
+LIST_AFTER_DATELINE_BODY = (
+    "<h3>Земля</h3>"
+    "<p class=\"block_date\">ЗАРЕЧЬЕ, 1 сентября — «Вестник»</p>"
+    "<ul><li>пункт сразу после даты</li></ul>"
+    "<p class=\"quote\">Потом абзац.</p>"
+)
+
+LIST_BEFORE_DATELINE_BODY = (
+    "<h3>Земля</h3>"
+    "<ul><li>пункт до первой даты</li></ul>"
+    "<p class=\"block_date\">ЗАРЕЧЬЕ, 1 сентября — «Вестник»</p>"
+    "<p class=\"quote\">Новость.</p>"
+)
+
+UNKNOWN_P_BODY = (
+    "<h3>Разное</h3>"
+    "<p class=\"block_date\">ЗАРЕЧЬЕ, 1 сентября — «Вестник»</p>"
+    "<p class=\"quote\">Первый абзац.</p>"
+    "<p>Непонятный абзац</p>"
+    "<p class=\"quote\">Второй абзац.</p>"
+)
+
+UNKNOWN_TABLE_BODY = (
+    "<h3>Разное</h3>"
+    "<p class=\"block_date\">ЗАРЕЧЬЕ, 1 сентября — «Вестник»</p>"
+    "<p class=\"quote\">Таблица ниже.</p>"
+    "<table><tr><td>выдуманная ячейка</td></tr></table>"
+)
