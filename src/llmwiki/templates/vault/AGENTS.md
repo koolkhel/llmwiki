@@ -84,8 +84,11 @@ Who wrote a source matters as much as what it says.
 
 - `wiki add-source` records the authors it finds in the raw file's frontmatter
   (`authors: [...]`). When a raw file has them, the source page **must** list
-  them in the same order: `authors: ["[[Name]]", ...]`. If a raw file has none,
-  check the text for a byline and ask the human before leaving it empty.
+  them in the same order: `authors: ["[[Name]]", ...]`.
+- Source-page `authors` come **only** from the raw file or from the human.
+  Never infer authors from the text, never look them up, and never change
+  authors that are already set. If the raw file has none, leave `authors`
+  empty and tell the human; they verify and fill it in themselves.
 - Each author is a person entity page: `wiki new-page --type entity "<Name as
   written by the source>" --json`, with `tags: [person]`. Keep an **Articles**
   section there linking each source page they wrote (newest first), and a
@@ -110,11 +113,16 @@ earlier ones.
   `published_via` says where the date came from). Copy the date into the
   source page as `published: YYYY-MM-DD`. `wiki lint` warns
   (`missing_published`) when a source page drops it.
+- Source-page `published` comes **only** from the raw file or from the human.
+  Never infer a date from the text, never look one up, and never change an
+  existing `published`. If the raw file has none, leave it empty and tell the
+  human; they verify and fill it in themselves.
 - Date every claim on entity, concept and person pages: "In April 2026,
   [[Author]] argued … ([[Source Page]])". Prefer the publication date over the
   capture date.
 - Keep a **Timeline** section on concept and person pages: one dated line per
   source, oldest first, e.g. `- 2026-04-09: [[Source Page]], [[Author]], one-line gist`.
+  List a source without `published` as `- undated: [[Source Page]] …`.
 - For questions about change over time, run `wiki timeline "<Page>" --json`
   (or `wiki timeline --author "<Name>"`). It lists every source about the page
   in publication order. `wiki search ... --since 2026-01 --until 2026-06
