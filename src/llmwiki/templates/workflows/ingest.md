@@ -21,7 +21,8 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
    - If `duplicate_of` is set and `status` is `ingested`, tell the human it is
      already in the wiki and stop, unless they asked for a re-read.
    - Otherwise continue with the returned `path`.
-2. **Read** the raw file at `path` in full.
+2. **Read** the raw file at `path` in full. If its frontmatter has
+   `format: rp-digest`, follow **Digests** below instead of steps 3–5.
 3. **Orient.** Read `index.md`. For the main entities and concepts in the source,
    run `wiki search <terms> --json` and read the pages you find.
 4. **Source page.** Run `wiki new-page --type source "<source title>" --raw <path> --json`
@@ -51,6 +52,33 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
 7. **Index and log.** Run `wiki index --json`, then
    `wiki log ingest "<source title>" --detail "<pages created/updated>" --json`.
 8. **Commit** the vault: `git add -A && git commit -m "ingest: <source title>"`.
+
+## Digests (`format: rp-digest`)
+
+A «Суть времени» news digest from rossaprimavera.ru, as described in `AGENTS.md`
+(Newspaper digests).
+
+1. Run `wiki source-items-rp <path> --json`. On exit 2, stop and report
+   `error.message`. On exit 1, list the `problems`. For an item with
+   `date: null`, ask the human for its date rather than guess. Report any
+   `unassigned` paragraphs to the human; don't ingest them.
+2. Create the hub page first:
+   `wiki new-page --type source "Суть времени №<number>" --raw <path> --json`,
+   with the issue's `published` and the raw file's `authors`.
+3. For each item, in order, run
+   `wiki new-page --type source "<short gist> (<outlet>, <date>)" --raw <path> --json`
+   and fill it in:
+   - `item`, `published` (the item's date), `outlet`, `via: "[[<hub>]]"`, and
+     `commentary: true` if it has a comment;
+   - the quote and the comment verbatim under their own headings.
+   
+   Add it to the hub's list.
+4. Update the entity and concept pages the items touch, as in step 5 above.
+   Date every claim with the item's date. Attribute facts to the outlet, and
+   comments to the editorial board («По мнению редакции «Суть времени» (<issue
+   date>), …»). Link the item pages.
+5. Continue with step 6. `wiki lint` must show no `rp_item_missing` or
+   `rp_item_mismatch` for this digest.
 
 Finish with a short report: what the source says, pages created or updated,
 and any contradictions or open questions it raised.

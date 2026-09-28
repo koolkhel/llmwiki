@@ -160,6 +160,7 @@ def search(
     since: str | None = None,
     until: str | None = None,
     sort: str | None = None,
+    commentary: bool = False,
 ) -> tuple[dict, list[str]]:
     """Returns (result document, warnings)."""
     lo = date_bound(since, end=False) if since is not None else None
@@ -170,13 +171,15 @@ def search(
     author_words = [t.text for t in tokenize(unicodedata.normalize("NFC", author or ""), compounds=False)]
     if author is not None and not author_words:
         raise WikiError("empty_query", "--author must contain at least one word.")
-    if not words and not author_words and lo is None and hi is None and sort is None:
-        raise WikiError("empty_query",
-                        "Search query must contain at least one word (or use --author, --since, --until or --sort).")
+    if not words and not author_words and lo is None and hi is None and sort is None and not commentary:
+        raise WikiError("empty_query", "Search query must contain at least one word "
+                        "(or use --author, --since, --until, --sort or --commentary).")
     if limit < 1:
         raise WikiError("invalid_limit", "--limit must be at least 1.")
     if raw and page_type:
         raise WikiError("invalid_option", "--type cannot be combined with --raw.")
+    if raw and commentary:
+        raise WikiError("invalid_option", "--commentary cannot be combined with --raw.")
 
     cache = LemmaCache(vault)
     an = Analyzer(cache.load())
@@ -204,7 +207,10 @@ def search(
 
     candidates: list[tuple[_Doc, str | None]] = []
     published_of: dict[str, object] = {}
+    outlet_of: dict[str, str] = {}
     for meta, make in entries:
+        if commentary and (meta or {}).get("commentary") is not True:
+            continue
         published = (meta or {}).get("published")
         if lo is not None or hi is not None:  # date filter first: cheap, before tokenizing the page
             day = as_date(published)
@@ -219,6 +225,8 @@ def search(
                 continue
         d = make()
         published_of[d.path] = published
+        if isinstance(outlet := (meta or {}).get("outlet"), str) and outlet:
+            outlet_of[d.path] = outlet
         candidates.append((d, a_tier))
 
     if terms:
@@ -244,6 +252,7 @@ def search(
             "score": score,
             "snippet": _snippet(d.fields["body"], terms, exact),
             **({"published": _fmt(published_of.get(d.path))} if published_of.get(d.path) else {}),
+            **({"outlet": outlet_of[d.path]} if d.path in outlet_of else {}),
         }
         for (score, _hits, match), d in scored[:limit]
     ]
@@ -254,6 +263,8 @@ def search(
     for k, v in (("since", since), ("until", until), ("sort", sort)):
         if v is not None:
             out[k] = v
+    if commentary:
+        out["commentary"] = True
     return out, cache.warnings
 
 

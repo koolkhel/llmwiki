@@ -120,6 +120,48 @@ earlier ones.
   in publication order. `wiki search ... --since 2026-01 --until 2026-06
   --sort oldest` filters and sorts by date.
 
+## Newspaper digests (rossaprimavera.ru)
+
+The weekly news digests of the newspaper «Суть времени» on rossaprimavera.ru
+are a run of short items. Each item has a dateline (`КУРСК, 18 сентября — РБК`),
+text quoted from that outlet and sometimes the **editorial board's comment**.
+`wiki add-source` marks them with `format: rp-digest` in the raw file's
+frontmatter. For those raw files:
+
+- Don't split the flattened raw body yourself: in it, comments look like quoted
+  text. Run `wiki source-items-rp <raw> --json`, which reads the stored
+  original and returns the issue (`newspaper`, `number`, `published`) and each
+  item: `n`, `section`, `place`, `date`, `outlet`, `quote` and `comment`
+  (verbatim paragraphs, or null).
+- One **hub** source page per issue, named `Суть времени №<number>`, with the
+  issue's `published`, the raw file's `authors`, and a list linking every item
+  page in order.
+- One source page per **item**, named `<short gist> (<outlet>, <YYYY-MM-DD>)`,
+  with the same `raw:` as the hub and:
+
+  ```yaml
+  item: 7                       # `n` from source-items-rp
+  published: 2026-09-18         # the item's date, not the issue's
+  outlet: РБК                   # who reported it
+  via: "[[Суть времени №682]]"  # the hub page
+  commentary: true              # only when the item has a comment
+  ```
+
+  No `authors`: the outlet is not a person. Body: `## Сообщение (<outlet>,
+  <date>)` with the quote as a blockquote, **verbatim**. When there is a
+  comment, add `## Комментарий редакции («Суть времени», <issue date>)` with
+  the comment, also verbatim. Then a "Touches" section. In a wiki written in
+  another language, translate the headings but never the quoted text.
+- An editorial comment is the newspaper's **opinion**, published on the issue
+  date. Never present it as a statement of the quoted outlet, or as a fact. On
+  entity and concept pages write it as «По мнению редакции «Суть времени»
+  (<issue date>), …» and link the item page. Facts from the quote are
+  attributed to the outlet with the item's date.
+- `wiki lint` warns with `rp_item_missing` when an item of an ingested digest
+  has no page, and with `rp_item_mismatch` when an item page's `published` or
+  `commentary` disagrees with the digest. `wiki search <terms> --commentary`
+  finds only items with an editorial comment.
+
 ## Writing rules
 
 - Every non-obvious claim traces back to a source page: add it to `sources:`

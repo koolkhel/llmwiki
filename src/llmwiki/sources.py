@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import fetch as fetch_mod
+from . import rpdigest
 from .errors import WikiError
 from .naming import EXT, MAX_FILENAME_BYTES, nfc, sanitize
 from .pages import Page, dump, iter_md, iter_pages, parse, resolve_raw_arg
@@ -134,6 +135,11 @@ def _stamp(now: dt.datetime) -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _format(url: str | None, html: bytes) -> str | None:
+    """`format` marker for sources that need a dedicated parser (only rossaprimavera.ru digests so far)."""
+    return rpdigest.FORMAT if rpdigest.looks_like_digest(url, html) else None
+
+
 def capture_url(vault: Vault, url: str, now: dt.datetime | None = None) -> dict:
     page = fetch_mod.fetch(url)
     body = normalize_text(page.body)
@@ -159,6 +165,7 @@ def capture_url(vault: Vault, url: str, now: dt.datetime | None = None) -> dict:
         "extractor": page.extractor,
         "sha256": sha,
         "original_file": nfc(orig.relative_to(vault.root).as_posix()),
+        "format": _format(page.final_url or page.original_url, page.html_bytes),
     }
     meta = {k: v for k, v in meta.items() if v is not None}
     orig.parent.mkdir(parents=True, exist_ok=True)
@@ -296,6 +303,7 @@ def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.d
             "sha256": sha,
             "original_path": str(p),
             "original_file": orig_rel,
+            "format": _format(saved.url, data),
         }
     else:
         meta = {

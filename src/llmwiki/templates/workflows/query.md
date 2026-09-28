@@ -14,7 +14,9 @@ Answer this question using the wiki, following `AGENTS.md`: $ARGUMENTS
    For questions about *when* something was said or how views changed, run
    `wiki timeline "<Page>" --json` (or `--author "<Name>"`) and
    `wiki search <terms> --since … --until … --sort oldest --json`, then answer
-   in chronological order with dates.
+   in chronological order with dates. For the editorial board's view on a topic
+   (newspaper digests), add `--commentary` to find only items with an editorial
+   comment, and attribute those to the newspaper, not to the quoted outlet.
 2. **Answer** from what the wiki says. Cite pages inline as `[[Page]]`. Say
    plainly what the wiki does not cover, and where sources disagree. Don't
    present outside knowledge as coming from the wiki; label it if you add any.

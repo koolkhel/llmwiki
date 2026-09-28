@@ -17,8 +17,8 @@ from typing import Annotated, Optional
 
 import typer
 
-from . import index, lint, log, pages, scaffold, search, sources, status, timeline, upgrade
-from .errors import EXIT_ERROR, WikiError
+from . import index, lint, log, pages, rpdigest, scaffold, search, sources, status, timeline, upgrade
+from .errors import EXIT_ERROR, EXIT_PROBLEMS, WikiError
 from .vault import find_vault
 
 try:  # Typer >= 0.2x vendors click; its exceptions are not re-exported publicly.
@@ -196,6 +196,21 @@ def source_meta_cmd(
     run(json_, body)
 
 
+@app.command("source-items-rp")
+def source_items_rp_cmd(
+    raw: Annotated[str, typer.Argument(help="A raw/ file captured from a «Суть времени» digest on rossaprimavera.ru.")],
+    json_: JsonOpt = False,
+    vault: VaultOpt = None,
+) -> None:
+    """Split a rossaprimavera.ru «Суть времени» digest into dated items with quotes and comments. Read-only."""
+
+    def body() -> Outcome:
+        res = rpdigest.source_items(find_vault(vault), raw)
+        return Outcome(res, rpdigest.render_text(res), exit_code=EXIT_PROBLEMS if res["problems"] else 0)
+
+    run(json_, body)
+
+
 @app.command("new-page")
 def new_page_cmd(
     title: Annotated[str, typer.Argument(help="Page title; becomes the filename.")],
@@ -272,6 +287,9 @@ def search_cmd(
     since: Annotated[Optional[str], typer.Option("--since", help="Published on/after YYYY[-MM[-DD]].")] = None,
     until: Annotated[Optional[str], typer.Option("--until", help="Published on/before YYYY[-MM[-DD]].")] = None,
     sort: Annotated[Optional[SortOrder], typer.Option("--sort", help="Order by published date.")] = None,
+    commentary: Annotated[
+        bool, typer.Option("--commentary", help="Only pages with `commentary: true` (digest items with an editorial comment).")
+    ] = False,
     json_: JsonOpt = False,
     vault: VaultOpt = None,
 ) -> None:
@@ -280,10 +298,11 @@ def search_cmd(
     def body() -> Outcome:
         res, warnings = search.search(
             find_vault(vault), " ".join(query or []), type_.value if type_ else None, limit, raw, exact, author,
-            since=since, until=until, sort=sort.value if sort else None,
+            since=since, until=until, sort=sort.value if sort else None, commentary=commentary,
         )
         lines = [f"{(r['published'][:10] + '  ') if r.get('published') else ''}{r['link']}  "
-                 f"({r['type']}, {r['match']}, {r['path']})\n    {r['snippet']}" for r in res["results"]]
+                 f"({r['type']}, {r['match']}, {r['path']}{', ' + r['outlet'] if r.get('outlet') else ''})"
+                 f"\n    {r['snippet']}" for r in res["results"]]
         shown = f"{len(res['results'])} of {res['total']}" if res["total"] > len(res["results"]) else str(res["total"])
         return Outcome(res, "\n".join([*lines, f"{shown} result(s)"]), warnings=warnings)
 

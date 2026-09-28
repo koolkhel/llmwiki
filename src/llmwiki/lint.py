@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 
-from . import index, upgrade
+from . import index, rpdigest, upgrade
 from .errors import EXIT_OK, EXIT_PROBLEMS, WikiError
+from .fetch import as_date
 from .links import Resolver, page_links
 from .naming import is_canonical_stem, key, title_to_filename
 from .pages import iter_pages
@@ -83,7 +84,7 @@ def check(vault: Vault) -> list[Finding]:
                     ))
                 raw_authors = raw_authors_by_rel.get(raw.strip().removeprefix("./"))
                 page_authors = p.meta.get("authors")
-                if raw_authors and not (isinstance(page_authors, list) and page_authors):
+                if raw_authors and "item" not in p.meta and not (isinstance(page_authors, list) and page_authors):
                     out.append(Finding(
                         "warning", "missing_authors", p.rel,
                         f"Raw file records authors ({', '.join(map(str, raw_authors))}) but this page has no `authors`.",
@@ -119,6 +120,8 @@ def check(vault: Vault) -> list[Finding]:
         if r.rel not in ingested:
             out.append(Finding("info", "pending_source", r.rel, "Not yet ingested (no wiki/sources page has raw: here)."))
 
+    out += _digest_findings(vault, raws, pages, ingested)
+
     for pending in upgrade.freshness(vault)["pending_merge"]:
         out.append(Finding("info", "template_merge_pending", pending,
                            "Template update not merged yet; run the upgrade workflow (/wiki-upgrade).", pending))
@@ -127,6 +130,45 @@ def check(vault: Vault) -> list[Finding]:
         out.append(Finding("warning", "index_stale", vault.rel(vault.index_path), "Out of date; run `wiki index`."))
 
     out.sort(key=lambda f: (SEVERITIES.index(f.severity), f.path, f.code, f.target or ""))
+    return out
+
+
+def _digest_findings(vault: Vault, raws, pages, ingested) -> list[Finding]:
+    """`rp_item_missing` / `rp_item_mismatch` for ingested «Суть времени» digests."""
+    out: list[Finding] = []
+    by_rel = {p.rel: p for p in pages}
+    for r in raws:
+        if (r.meta or {}).get("format") != rpdigest.FORMAT or r.rel not in ingested:
+            continue
+        try:
+            items = {i["n"]: i for i in rpdigest.items_for_raw(vault, r)["items"]}
+        except WikiError as e:
+            out.append(Finding("warning", "rp_item_mismatch", r.rel, f"Cannot parse the digest: {e.message}"))
+            continue
+        pages_by_item: dict[int, list] = defaultdict(list)
+        for rel in ingested[r.rel]:
+            n = (by_rel[rel].meta or {}).get("item")
+            if isinstance(n, int) and not isinstance(n, bool):
+                pages_by_item[n].append(by_rel[rel])
+        for n, item in items.items():
+            if n not in pages_by_item:
+                out.append(Finding("warning", "rp_item_missing", r.rel,
+                                   f"Item {n} ({item['dateline']}) has no source page with `item: {n}`.", str(n)))
+        for n, group in pages_by_item.items():
+            for p in group:
+                item = items.get(n)
+                if item is None:
+                    out.append(Finding("warning", "rp_item_mismatch", p.rel,
+                                       f"`item: {n}` is not an item of {r.rel} ({len(items)} items)."))
+                    continue
+                problems = []
+                if item["date"] and as_date(p.meta.get("published")) != as_date(item["date"]):
+                    problems.append(f"`published` should be {item['date']}")
+                if bool(item["comment"]) != (p.meta.get("commentary") is True):
+                    problems.append("`commentary` should be true (the item has an editorial comment)" if item["comment"]
+                                    else "`commentary` should be absent or false (the item has no comment)")
+                if problems:
+                    out.append(Finding("warning", "rp_item_mismatch", p.rel, f"Item {n}: " + "; ".join(problems) + "."))
     return out
 
 

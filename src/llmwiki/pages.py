@@ -134,6 +134,13 @@ class Page:
         for f in ("created", "updated"):
             if f in m and not isinstance(m[f], (dt.date, str)):
                 out.append(f"`{f}` must be a date")
+        if "item" in m and not (isinstance(m["item"], int) and not isinstance(m["item"], bool) and m["item"] > 0):
+            out.append("`item` must be a positive integer")
+        for f in ("outlet", "via"):
+            if f in m and not isinstance(m[f], str):
+                out.append(f"`{f}` must be a string")
+        if "commentary" in m and not isinstance(m["commentary"], bool):
+            out.append("`commentary` must be true or false")
         if m.get("type") == "source" and not (isinstance(m.get("raw"), str) and m["raw"].strip()):
             out.append("source pages need a `raw` field pointing at a file under raw/")
         return out

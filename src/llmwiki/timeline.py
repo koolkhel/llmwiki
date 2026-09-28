@@ -90,6 +90,8 @@ def timeline(vault: Vault, page_arg: str | None = None, author: str | None = Non
             "summary": p.summary,
             "_t": instant(sort_value),
         }
+        if isinstance(outlet := (p.meta or {}).get("outlet"), str) and outlet:
+            entry["outlet"] = outlet
         if shown is None:
             entry["undated"] = True
         entries.append(entry)
