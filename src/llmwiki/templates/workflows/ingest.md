@@ -1,6 +1,6 @@
 ---
-description: Capture a URL, text file or saved web page and fold it into the wiki
-argument-hint: <url | path to .txt/.md/.html> [focus or notes]
+description: Capture a URL, text file, saved web page or PDF and fold it into the wiki
+argument-hint: <url | path to .txt/.md/.html/.pdf> [focus or notes]
 ---
 
 Ingest this source into the wiki, following `AGENTS.md`: $ARGUMENTS
@@ -14,6 +14,9 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
      `extraction_failed`, the site probably blocks automated fetching: ask the
      human to save the page from their browser (as "Webpage, Complete" or HTML)
      and give you the `.html` path, then capture that file instead.
+     If a PDF failed with `multi_column` or `no_text_layer`, tell the human it is
+     a two-column or scanned PDF, which capture does not support, and stop. Don't
+     extract its text another way.
    - For a saved `.html` page, check `url_source`. If it is null, or the
      recorded URL looks wrong (e.g. a homepage), ask the human for the real URL
      and re-run with `--url <url>` after they delete the wrongly captured raw
@@ -23,6 +26,10 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
    - Otherwise continue with the returned `path`.
 2. **Read** the raw file at `path` in full. If its frontmatter has
    `format: rp-digest`, follow **Digests** below instead of steps 3–5.
+   A long source (e.g. a paper captured from a PDF) doesn't fit in one read:
+   read it section by section (`##` headings) and take notes as you go. Don't
+   summarise its References section; use it to look up the works the text
+   cites (`[12]`) when a claim depends on them.
 3. **Orient.** Read `index.md`. For the main entities and concepts in the source,
    run `wiki search <terms> --json` and read the pages you find.
 4. **Source page.** Run `wiki new-page --type source "<source title>" --raw <path> --json`
@@ -36,7 +43,8 @@ raw sources it lists. Skip step 1 for those, since they are already captured.
    `authors`, look for a byline in the text and ask the human rather than guess.
    **Date:** copy the raw file's `published` date into the source page as
    `published: YYYY-MM-DD`. If there is none, look for a date in the text and
-   ask the human. Add a dated line for this source to the **Timeline** section
+   ask the human. PDF captures (`format: pdf`) never have one: always confirm
+   the publication date with the human. Add a dated line for this source to the **Timeline** section
    of every concept and person page you touch (keep it oldest first), and date
    the claims you add.
 5. **Update the wiki.** Typically 5–15 pages:

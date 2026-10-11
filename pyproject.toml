@@ -40,6 +40,8 @@ dependencies = [
     # Search: Russian lemmatization (dictionary ~15 MB) and English stemming.
     "pymorphy3>=2.0",
     "snowballstemmer>=2.2",
+    # PDF capture: characters with font, size and position (MIT, pure Python).
+    "pdfminer.six>=20260107",
 ]
 
 [project.urls]

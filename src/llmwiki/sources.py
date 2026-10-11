@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import fetch as fetch_mod
+from . import pdf as pdf_mod
 from . import rpdigest
 from .errors import WikiError
 from .naming import EXT, MAX_FILENAME_BYTES, nfc, sanitize
@@ -19,6 +20,7 @@ _URL = re.compile(r"^https?://", re.I)
 _HEADING = re.compile(r"^#[ \t]+(.+?)[ \t#]*$", re.M)
 FILE_SUFFIXES = (".txt", ".md")
 HTML_SUFFIXES = (".html", ".htm")
+PDF_SUFFIXES = (".pdf",)
 HASH_SUFFIX_LEN = 8
 _DATE_PREFIX_LEN = len("YYYY-MM-DD-")
 _RAW_TITLE_BYTES = MAX_FILENAME_BYTES - len(EXT) - _DATE_PREFIX_LEN - (1 + HASH_SUFFIX_LEN)
@@ -77,10 +79,13 @@ def raw_path_for(vault: Vault, date: dt.date, title: str, sha: str) -> Path:
     return path
 
 
-def find_duplicate(raws: list[RawSource], sha: str, normalized_url: str | None = None) -> RawSource | None:
+def find_duplicate(raws: list[RawSource], sha: str | None, normalized_url: str | None = None,
+                   original_sha256: str | None = None) -> RawSource | None:
     for r in raws:
         m = r.meta or {}
-        if m.get("sha256") == sha:
+        if sha and m.get("sha256") == sha:
+            return r
+        if original_sha256 and m.get("original_sha256") == original_sha256:
             return r
         if normalized_url and m.get("kind") == "url" and m.get("normalized_url") == normalized_url:
             return r
@@ -191,8 +196,8 @@ def _source_file(vault: Vault, arg: str) -> Path:
     if not p.is_file():
         raise WikiError("not_a_file", f"{arg}: not a regular file.", path=arg)
     p = p.resolve()
-    if p.suffix.lower() not in FILE_SUFFIXES + HTML_SUFFIXES:
-        supported = ", ".join(FILE_SUFFIXES + HTML_SUFFIXES)
+    if p.suffix.lower() not in FILE_SUFFIXES + HTML_SUFFIXES + PDF_SUFFIXES:
+        supported = ", ".join(FILE_SUFFIXES + HTML_SUFFIXES + PDF_SUFFIXES)
         raise WikiError("unsupported_file", f"{arg}: only {supported} files are supported.", path=arg)
     if p.is_relative_to(vault.raw_dir.resolve()):
         raise WikiError(
@@ -336,6 +341,51 @@ def capture_saved_html(vault: Vault, arg: str, url: str | None = None, now: dt.d
     return res
 
 
+def capture_pdf(vault: Vault, arg: str, now: dt.datetime | None = None) -> dict:
+    """Capture a single-column PDF with a text layer. Offline; the PDF is copied to raw/.orig/ (git-ignored)."""
+    p = _source_file(vault, arg)
+    data = p.read_bytes()
+    original_sha = hashlib.sha256(data).hexdigest()
+    raws = iter_raw(vault)
+    dup = find_duplicate(raws, None, original_sha256=original_sha)
+    if dup:
+        return _result(vault, dup, None, {}, duplicate=True)
+    doc = pdf_mod.extract(p)
+    body = normalize_text(doc.body)
+    sha = content_hash(body)
+    dup = find_duplicate(raws, sha)
+    if dup:
+        return _result(vault, dup, None, {}, duplicate=True)
+
+    now = _now(now)
+    path = raw_path_for(vault, now.astimezone().date(), doc.title, sha)
+    orig = vault.orig_dir / f"{path.name[: -len(EXT)]}.pdf"
+    meta: dict = {
+        "kind": "file",
+        "format": pdf_mod.FORMAT,
+        "title": doc.title,
+        "authors": doc.authors or None,
+        "doi": doc.doi,
+        "pages": doc.pages,
+        "original_path": str(p),
+        "captured_at": _stamp(now),
+        "extractor": doc.extractor,
+        "sha256": sha,
+        "original_file": nfc(orig.relative_to(vault.root).as_posix()),
+        "original_sha256": original_sha,
+        "original_size": len(data),
+    }
+    meta = {k: v for k, v in meta.items() if v is not None}
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    with orig.open("xb") as f:
+        f.write(data)
+    _write_new(path, dump(meta, body + "\n"))
+    res = _result(vault, None, path, meta, duplicate=False)
+    if doc.warnings:
+        res["warnings"] = list(doc.warnings)
+    return res
+
+
 def is_url(arg: str) -> bool:
     return bool(_URL.match(arg))
 
@@ -353,6 +403,8 @@ def capture(vault: Vault, arg: str, now: dt.datetime | None = None, url: str | N
         return capture_saved_html(vault, arg, url=url, now=now)
     if url is not None:
         raise WikiError("invalid_option", "--url is only valid for saved .html/.htm files.")
+    if Path(arg).suffix.lower() in PDF_SUFFIXES:
+        return capture_pdf(vault, arg, now)
     return capture_file(vault, arg, now)
 
 
@@ -368,6 +420,13 @@ def derive_meta(vault: Vault, raw: RawSource) -> tuple[dict | None, str | None]:
     orig = vault.root / orig_rel if isinstance(orig_rel, str) and orig_rel else None
     if orig is None or not orig.is_file():
         return None, "no_original"
+    if orig.suffix.lower() in PDF_SUFFIXES:
+        try:
+            doc = pdf_mod.extract(orig)
+        except WikiError as e:
+            return None, e.code
+        return {"title": doc.title, "authors": doc.authors, "doi": doc.doi, "published": None, "modified": None,
+                "published_via": None, "language": None, "canonical_url": None}, None
     hint = m.get("original_url") if isinstance(m.get("original_url"), str) else None
     try:
         page = fetch_mod.extract_saved(orig.read_bytes(), url_hint=hint or None).page

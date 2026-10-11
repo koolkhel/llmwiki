@@ -117,6 +117,10 @@ def check(vault: Vault) -> list[Finding]:
                                "Raw file lacks capture frontmatter (sha256); add sources with `wiki add-source`."))
         elif content_hash(r.body) != r.sha256:
             out.append(Finding("error", "raw_modified", r.rel, "Raw file body no longer matches its recorded sha256."))
+        orig = (r.meta or {}).get("original_file")
+        if (r.meta or {}).get("format") == "pdf" and isinstance(orig, str) and not (vault.root / orig).is_file():
+            out.append(Finding("info", "original_not_local", r.rel,
+                               f"The stored PDF {orig} is not on this machine (PDFs are not committed).", orig))
         if r.rel not in ingested:
             out.append(Finding("info", "pending_source", r.rel, "Not yet ingested (no wiki/sources page has raw: here)."))
 

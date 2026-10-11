@@ -131,7 +131,7 @@ class PageType(str, Enum):
 @app.command("add-source")
 def add_source_cmd(
     source: Annotated[
-        str, typer.Argument(help="An http(s) URL, a UTF-8 .txt/.md file, or a browser-saved .html/.htm page.")
+        str, typer.Argument(help="An http(s) URL, a UTF-8 .txt/.md file, a browser-saved .html/.htm page, or a single-column .pdf.")
     ],
     url: Annotated[
         Optional[str],
@@ -140,7 +140,7 @@ def add_source_cmd(
     json_: JsonOpt = False,
     vault: VaultOpt = None,
 ) -> None:
-    """Capture a URL, text file or saved web page into raw/ (immutable, with provenance frontmatter)."""
+    """Capture a URL, text file, saved web page or PDF into raw/ (immutable, with provenance frontmatter)."""
 
     def body() -> Outcome:
         res = sources.capture(find_vault(vault), source, url=url)

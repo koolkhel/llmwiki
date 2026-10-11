@@ -107,6 +107,21 @@ search work per item. Comments are attributed to the newspaper, never to the
 outlet. `wiki search <terms> --commentary` finds only the commented items.
 The parser is specific to this site's markup and refuses anything else.
 
+### PDF papers
+
+`wiki add-source paper.pdf` turns a single-column PDF with a text layer into
+markdown from its page layout: the title, `##` section headings, paragraphs
+rejoined across page breaks, `> Figure N: …` captions, footnotes as `[^n]`,
+and one line per reference. Page numbers and running headers are dropped.
+The raw file records `format: pdf`, `pages`, `doi` (when page 1 prints one),
+authors when they are recognisable, and the extractor version, but never a
+`published` date: the PDF's own dates are file dates, so ingest asks you.
+Scanned and two-column PDFs are refused (`no_text_layer`, `multi_column`).
+The PDF is kept in `raw/.orig/` with its `original_sha256`, but the vault's
+`.gitignore` excludes `raw/.orig/*.pdf`, so only the extracted text is
+committed; on another clone, `wiki lint` notes the missing PDF as
+`original_not_local` (info).
+
 ### How `raw/` is protected
 
 `raw/` holds the faithful copies of your sources and must never be edited.
@@ -150,7 +165,7 @@ replaced by the `wiki-` names. It never touches `raw/`, `wiki/`, `index.md`,
 | Command | Purpose |
 |---|---|
 | `wiki init <dir> [--language en]` | Scaffold a vault (optionally with a wiki language). Never overwrites existing files. |
-| `wiki add-source <url\|file>` | Capture a URL, a `.txt`/`.md` file, or a browser-saved `.html` page (`--url` to set its address) into immutable `raw/`. |
+| `wiki add-source <url\|file>` | Capture a URL, a `.txt`/`.md` file, a browser-saved `.html` page (`--url` to set its address), or a single-column `.pdf` into immutable `raw/`. |
 | `wiki new-page --type T "Title"` | Create a page whose filename is its title. |
 | `wiki search <terms>` | Find pages (or raw sources with `--raw`). Matches Russian and English word forms; `--exact` for literal words; `--author <name>` for everything by a person; `--since`/`--until`/`--sort oldest\|newest` by publication date; `--commentary` for digest items with an editorial comment. |
 | `wiki source-items-rp <raw>` | Split a «Суть времени» digest from rossaprimavera.ru into dated items with quotes and editorial comments. Read-only. |

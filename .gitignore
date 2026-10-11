@@ -4,3 +4,6 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+
+# Source papers dropped into the repo while testing PDF capture (copyrighted, large)
+*.pdf

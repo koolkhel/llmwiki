@@ -128,7 +128,8 @@ def test_long_title_raw_name_fits(vault, tmp_path):
         (lambda d: d, "not_a_file"),
         (lambda d: (d / "bin.txt", (d / "bin.txt").write_bytes(b"ab\x00cd"))[0], "binary_file"),
         (lambda d: (d / "l1.txt", (d / "l1.txt").write_bytes("café".encode("latin-1")))[0], "not_utf8"),
-        (lambda d: (d / "doc.pdf", (d / "doc.pdf").write_bytes(b"%PDF"))[0], "unsupported_file"),
+        (lambda d: (d / "doc.docx", (d / "doc.docx").write_bytes(b"PK"))[0], "unsupported_file"),
+        (lambda d: (d / "doc.pdf", (d / "doc.pdf").write_bytes(b"%PDF"))[0], "pdf_unreadable"),
     ],
 )
 def test_file_rejections(vault, tmp_path, make, code):
