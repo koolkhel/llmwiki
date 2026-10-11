@@ -23,6 +23,7 @@ Gives a deterministic, structural health check of the vault — the mechanical h
 - `missing_published` (warning): a source page whose raw file records `published` but whose own `published` is missing or empty
 - `pending_source` (info): a raw source that is not yet ingested
 - `template_merge_pending` (info): a `<path>.new` written by `wiki upgrade` next to a template-managed file, not yet merged and removed
+- `original_not_local` (info): a raw file with `format: pdf` whose `original_file` is not present (stored PDFs are not committed, so a cloned vault lacks them)
 
 #### Scenario: Dead link
 - **WHEN** a page links `[[Nonexistent]]` and no such page exists
@@ -55,6 +56,10 @@ Gives a deterministic, structural health check of the vault — the mechanical h
 #### Scenario: Source page lost the date
 - **WHEN** a raw file records `published: 2026-04-09T06:25:00+03:00` and its source page has no `published`
 - **THEN** lint reports a `missing_published` warning for the source page naming the raw date
+
+#### Scenario: Cloned vault without its PDFs
+- **WHEN** a raw file has `format: pdf` and its `original_file` does not exist in the vault
+- **THEN** lint reports `original_not_local` (info) for the raw file and still exits 0
 
 ### Requirement: Lint exit status and filtering
 `wiki lint` SHALL exit 1 if any `error` finding exists, and 0 otherwise. `--strict` SHALL also make warnings produce exit 1. `--json` output SHALL include the findings list and counts per severity.
